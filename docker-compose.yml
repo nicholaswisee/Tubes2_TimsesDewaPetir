@@ -1,31 +1,35 @@
 services:
-    backend:
-        build:
-            context: ./backend
-        ports:
-            - "8080:8080"
-        environment:
-            # Allow requests from the frontend container's public-facing origin.
-            # When running in Docker, the browser still hits localhost:3000,
-            # so we tell Gin to allow that origin.
-            FRONTEND_ORIGIN: "http://localhost:3000"
-        networks:
-            - app-network
+  backend:
+    build:
+      context: ./backend
+      target: dev           # uses the dev stage which has air installed
+    volumes:
+      - ./backend:/app      # bind-mount source so air can watch for changes
+      - /app/tmp            # anonymous volume keeps air build output off the host
+    ports:
+      - "8080:8080"
+    environment:
+      GIN_MODE: debug
+      FRONTEND_ORIGIN: "http://localhost:3000"
+    networks:
+      - app-net
 
-    frontend:
-        build:
-            context: ./frontend
-        ports:
-            - "3000:3000"
-        environment:
-            # SSR server-side fetches use the Docker service name directly —
-            # no CORS involved because it's server-to-server within the same network.
-            VITE_API_URL: "http://backend:8080"
-        depends_on:
-            - backend
-        networks:
-            - app-network
+  frontend:
+    image: oven/bun:1
+    working_dir: /app
+    volumes:
+      - ./frontend:/app         # bind-mount source for HMR
+      - /app/node_modules       # keep node_modules inside the container
+    ports:
+      - "3000:3000"
+    command: sh -c "bun install && bun run dev --host"
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: "http://backend:8080"   # SSR server-side fetches
+    networks:
+      - app-net
 
 networks:
-    app-network:
-        driver: bridge
+  app-net:
+    driver: bridge

@@ -1,0 +1,23 @@
+# Go build artifacts
+backend/server
+backend/tmp/
+
+# Bun / Node
+frontend/node_modules/
+frontend/.output/
+frontend/.vinxi/
+frontend/.tanstack/
+
+# Env files
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo

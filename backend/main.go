@@ -6,13 +6,12 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/handler"
 )
 
 func main() {
 	r := gin.Default()
 
-	// Allow FRONTEND_ORIGIN env var override (set in docker-compose for container networking)
-	// Falls back to localhost:3000 for local development
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
 	if frontendOrigin == "" {
 		frontendOrigin = "http://localhost:3000"
@@ -27,5 +26,9 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}))
 
+	// Routing
+	handler.RegisterRoutes(r)
+
+	// Server
 	r.Run(":8080")
 }

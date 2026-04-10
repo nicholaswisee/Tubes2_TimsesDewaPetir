@@ -1,0 +1,45 @@
+services:
+  backend:
+    build:
+      context: ./backend     # uses the final alpine stage (compiled binary)
+    restart: unless-stopped
+    environment:
+      GIN_MODE: release
+      FRONTEND_ORIGIN: "http://THE_VM_IP" # Edit nanti kalo udah deploy
+    # Port 8080 is NOT exposed externally — only Caddy talks to it via app-net.
+    networks:
+      - app-net
+
+  frontend:
+    build:
+      context: ./frontend    # runs the production SSR server
+    restart: unless-stopped
+    environment:
+      # SSR server-to-server: no CORS, uses Docker DNS name
+      VITE_API_URL: "http://backend:8080"
+    # Port 3000 is NOT exposed externally — Caddy proxies to it.
+    depends_on:
+      - backend
+    networks:
+      - app-net
+
+  caddy:
+    image: caddy:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"              # HTTP only (no domain = no auto-HTTPS)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    driver: bridge
+
+volumes:
+  caddy_data:

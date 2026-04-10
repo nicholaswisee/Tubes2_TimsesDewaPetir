@@ -1,0 +1,37 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  # Command that compiles the project
+  cmd = "go build -o ./tmp/server ."
+  # Binary produced by cmd
+  bin = "./tmp/server"
+  # Kill the running binary before rebuilding
+  kill_delay = "200ms"
+  # Send interrupt signal before kill
+  send_interrupt = true
+
+  # Watch these file extensions
+  include_ext = ["go"]
+
+  # Ignore these directories
+  exclude_dir = ["tmp", "vendor", "testdata"]
+
+  # Ignore test files (optional)
+  exclude_regex = ["_test\\.go$"]
+
+  # Delay before triggering a new build after a change (debounce)
+  delay = 500 # ms
+
+[log]
+  time = true
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  # Delete tmp dir on exit
+  clean_on_exit = true
