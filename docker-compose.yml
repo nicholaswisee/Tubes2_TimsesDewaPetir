@@ -1,0 +1,31 @@
+services:
+    backend:
+        build:
+            context: ./backend
+        ports:
+            - "8080:8080"
+        environment:
+            # Allow requests from the frontend container's public-facing origin.
+            # When running in Docker, the browser still hits localhost:3000,
+            # so we tell Gin to allow that origin.
+            FRONTEND_ORIGIN: "http://localhost:3000"
+        networks:
+            - app-network
+
+    frontend:
+        build:
+            context: ./frontend
+        ports:
+            - "3000:3000"
+        environment:
+            # SSR server-side fetches use the Docker service name directly —
+            # no CORS involved because it's server-to-server within the same network.
+            VITE_API_URL: "http://backend:8080"
+        depends_on:
+            - backend
+        networks:
+            - app-network
+
+networks:
+    app-network:
+        driver: bridge

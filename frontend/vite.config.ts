@@ -17,6 +17,16 @@ const config = defineConfig({
     tanstackStart(),
     viteReact(),
   ],
+  server: {
+    proxy: {
+      // During local dev, browser requests to /api are proxied to the backend.
+      // This avoids CORS entirely for the browser — no preflight needed.
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+    },
+  },
 })
 
 export default config
