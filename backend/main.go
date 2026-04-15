@@ -1,15 +1,27 @@
 package main
 
 import (
+	"fmt"
+	"log"
 	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/handler"
+	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/scraper"
 )
 
 func main() {
+	url := "https://example.com"
+	fmt.Printf("Fetching HTML from: %s\n\n", url)
+	htmlContent, err := scraper.FetchHTML(url)
+	if err != nil {
+		log.Fatalf("Failed to fetch: %v", err)
+	}
+	fmt.Println(htmlContent)
+	fmt.Println("--------------------------------------------------")
+
 	r := gin.Default()
 
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN")
@@ -29,6 +41,7 @@ func main() {
 	// Routing
 	handler.RegisterRoutes(r)
 
-	// Server
+	// Server runs on localhost:8080 and blocks infinitely
+	fmt.Println("Starting Gin server on :8080...")
 	r.Run(":8080")
 }
