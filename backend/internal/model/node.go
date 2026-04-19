@@ -2,12 +2,14 @@ package model
 
 // individual DOM Node
 type DOMNode struct {
-	ID         int               `json:"id"`
-	Tag        string            `json:"tag"`
-	Attributes map[string]string `json:"attributes"`
-	Text       string            `json:"text"`
-	Depth      int               `json:"depth"`
-	Children   []*DOMNode        `json:"children"`
+	ID              int               `json:"id"`
+	Tag             string            `json:"tag"`
+	Attributes      map[string]string `json:"attributes"`
+	Text            string            `json:"text"`
+	Depth           int               `json:"depth"`
+	Children        []*DOMNode        `json:"children"`
+	Parent          *DOMNode          `json:"-"` // Added for Combinators
+	PreviousSibling *DOMNode          `json:"-"` // Added for Combinators
 }
 
 // Individual traversal step for highlighting

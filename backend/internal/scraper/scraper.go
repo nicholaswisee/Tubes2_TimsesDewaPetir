@@ -61,10 +61,14 @@ func buildNode(n *html.Node, depth int, counter *int) *model.DOMNode {
 		}
 	}
 
+	var prevChild *model.DOMNode
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
 		child := buildNode(c, depth+1, counter)
 		if child != nil {
+			child.Parent = node
+			child.PreviousSibling = prevChild
 			node.Children = append(node.Children, child)
+			prevChild = child
 		}
 	}
 	return node
