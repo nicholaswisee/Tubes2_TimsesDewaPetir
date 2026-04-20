@@ -4,23 +4,57 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/handler"
+	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/model"
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/scraper"
 )
 
+func printTree(node *model.DOMNode, indent string) {
+	if node == nil {
+		return
+	}
+
+	// Output the Tag and maybe Text so we see it parsing correctly
+	output := fmt.Sprintf("%s<%s>", indent, node.Tag)
+	if node.Tag == "#text" {
+		text := node.Text
+		if len(text) > 30 {
+			text = text[:27] + "..."
+		}
+		output = fmt.Sprintf("%s\"%s\"", indent, strings.ReplaceAll(text, "\n", " "))
+	}
+	fmt.Println(output)
+
+	for _, child := range node.Children {
+		printTree(child, indent+"  ")
+	}
+}
+
 func main() {
+	//	testing scraperrr
 	url := "https://example.com"
-	fmt.Printf("Fetching HTML from: %s\n\n", url)
+	fmt.Printf("Fetching HTML from: %s\n", url)
+
 	htmlContent, err := scraper.FetchHTML(url)
 	if err != nil {
 		log.Fatalf("Failed to fetch: %v", err)
 	}
-	fmt.Println(htmlContent)
-	fmt.Println("--------------------------------------------------")
+
+	fmt.Printf("Successfully Fetched %d bytes.\n", len(htmlContent))
+	fmt.Println("Parsing into DOM Tree...")
+
+	treeRoot, err := scraper.Parse(htmlContent)
+	if err != nil {
+		log.Fatalf("Failed to parse DOM: %v", err)
+	}
+
+	fmt.Println("\nDOM TREE")
+	printTree(treeRoot, "")
 
 	r := gin.Default()
 
