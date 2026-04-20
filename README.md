@@ -1,6 +1,5 @@
 # Tubes2 — TimsesDewaPetir
 
-Tubes 2 hahahaha
 
 ## Prerequisites
 
