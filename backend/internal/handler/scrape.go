@@ -13,7 +13,7 @@ func RegisterRoutes(r *gin.Engine) {
 	api := r.Group("/api")
 	{
 		api.GET("/health", Health)
-		api.GET("search", Search)
+		api.POST("/search", Search)
 	}
 }
 
