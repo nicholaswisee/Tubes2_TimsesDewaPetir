@@ -2,12 +2,17 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/model"
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/scraper"
+	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/selector"
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/traversal"
 )
+
+// Global memory for advanced endpoints like LCA to hook back into the last parsed document.
+var LastParsedTree *model.DOMNode
 
 func RegisterRoutes(r *gin.Engine) {
 	api := r.Group("/api")
@@ -28,7 +33,6 @@ func Search(c *gin.Context) {
 		return
 	}
 
-	// Ambil HTML dari raw string atau fetch dari URL
 	rawHTML := req.HTML
 	if rawHTML == "" {
 		if req.URL == "" {
@@ -43,29 +47,40 @@ func Search(c *gin.Context) {
 		rawHTML = fetched
 	}
 
-	// Parse HTML menjadi DOM tree
 	tree, err := scraper.Parse(rawHTML)
 	if err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Lakukan algoritma traversal yang dipilih (BFS/DFS)
-	var result traversal.Result
-	switch req.Algorithm {
-	case "bfs":
-		result = traversal.BFS(tree, req.Selector, req.Limit)
-	case "dfs":
-		result = traversal.DFS(tree, req.Selector, req.Limit)
+	LastParsedTree = tree
+
+	astMatcher := selector.ParseSelector(req.Selector)
+	matchFunc := func(node *model.DOMNode) bool {
+		return astMatcher.Match(node)
 	}
 
-	// Kembalikan response
+	start := time.Now()
+	var matches []*model.DOMNode
+	var log []model.TraversalStep
+	var visitedCount int
+
+	switch req.Algorithm {
+	case "bfs":
+		matches, log, visitedCount = traversal.BFS(tree, matchFunc, req.Limit)
+	case "dfs":
+		matches, log, visitedCount = traversal.DFS(tree, matchFunc, req.Limit)
+	}
+	durationMs := time.Since(start).Milliseconds()
+
+	maxDepth := model.MaxDepth(tree)
+
 	c.JSON(http.StatusOK, model.SearchResponse{
 		Tree:         tree,
-		MaxDepth:     result.MaxDepth,
-		Matches:      result.Matches,
-		VisitedCount: result.VisitedCount,
-		DurationMs:   result.DurationMs,
-		TraversalLog: result.Log,
+		MaxDepth:     maxDepth,
+		Matches:      matches,
+		VisitedCount: visitedCount,
+		DurationMs:   durationMs,
+		TraversalLog: log,
 	})
 }
