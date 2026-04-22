@@ -10,7 +10,6 @@ import (
 	"golang.org/x/net/html"
 )
 
-// Fetches raw HTML from a URL
 func FetchHTML(url string) (string, error) {
 	resp, err := http.Get(url)
 	if err != nil {
@@ -21,55 +20,122 @@ func FetchHTML(url string) (string, error) {
 	return string(b), err
 }
 
-// Converts an HTML string into a DOMNode tree
 func Parse(rawHTML string) (*model.DOMNode, error) {
-	doc, err := html.Parse(strings.NewReader(rawHTML))
-	if err != nil {
-		return nil, err
-	}
+	z := html.NewTokenizer(strings.NewReader(rawHTML))
+
 	counter := 0
-	return buildNode(doc, 0, &counter), nil
-}
-
-func buildNode(n *html.Node, depth int, counter *int) *model.DOMNode {
-	if n == nil {
-		return nil
-	}
-	// Skip comment and doctype nodes
-	if n.Type == html.CommentNode || n.Type == html.DoctypeNode {
-		return nil
-	}
-
-	*counter++
-	node := &model.DOMNode{
-		ID:         *counter,
-		Depth:      depth,
+	root := &model.DOMNode{
+		ID:         counter,
+		Tag:        "document",
+		Depth:      0,
 		Attributes: make(map[string]string),
 	}
+	stack := []*model.DOMNode{root}
+	var lastAppended map[int]*model.DOMNode
+	lastAppended = make(map[int]*model.DOMNode)
 
-	switch n.Type {
-	case html.TextNode:
-		node.Tag = "#text"
-		node.Text = strings.TrimSpace(n.Data)
-		if node.Text == "" {
-			return nil // skip whitespace-only text nodes
+	for {
+		tt := z.Next()
+		if tt == html.ErrorToken {
+			if z.Err() == io.EOF {
+				break
+			}
+			return nil, z.Err()
 		}
-	case html.ElementNode:
-		node.Tag = n.Data
-		for _, a := range n.Attr {
-			node.Attributes[a.Key] = a.Val
+
+		switch tt {
+		case html.StartTagToken, html.SelfClosingTagToken:
+			t := z.Token()
+			counter++
+			node := &model.DOMNode{
+				ID:         counter,
+				Tag:        t.Data,
+				Depth:      len(stack),
+				Attributes: make(map[string]string),
+			}
+			for _, a := range t.Attr {
+				node.Attributes[a.Key] = a.Val
+			}
+
+			parent := stack[len(stack)-1]
+			node.Parent = parent
+
+			if prev, ok := lastAppended[parent.ID]; ok {
+				node.PreviousSibling = prev
+			}
+			parent.Children = append(parent.Children, node)
+			lastAppended[parent.ID] = node
+
+			if tt == html.StartTagToken {
+				stack = append(stack, node)
+				lastAppended[node.ID] = nil // Reset last Appended for new level
+			}
+
+		case html.EndTagToken:
+			t := z.Token()
+			// Pop the stack until we find the matching tag
+			for i := len(stack) - 1; i > 0; i-- {
+				if stack[i].Tag == t.Data {
+					stack = stack[:i]
+					break
+				}
+			}
+
+		case html.TextToken:
+			t := z.Token()
+			text := strings.TrimSpace(t.Data)
+			if text == "" {
+				continue
+			}
+
+			counter++
+			node := &model.DOMNode{
+				ID:         counter,
+				Tag:        "#text",
+				Text:       text,
+				Depth:      len(stack),
+				Attributes: make(map[string]string),
+			}
+
+			parent := stack[len(stack)-1]
+			node.Parent = parent
+			if prev, ok := lastAppended[parent.ID]; ok {
+				node.PreviousSibling = prev
+			}
+			parent.Children = append(parent.Children, node)
+			lastAppended[parent.ID] = node
+
+		case html.CommentToken, html.DoctypeToken:
+			// Skip
 		}
 	}
 
-	var prevChild *model.DOMNode
-	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		child := buildNode(c, depth+1, counter)
-		if child != nil {
-			child.Parent = node
-			child.PreviousSibling = prevChild
-			node.Children = append(node.Children, child)
-			prevChild = child
+	realRootChildren := 0
+	var htmlRoot *model.DOMNode
+	for _, c := range root.Children {
+		if c.Tag != "#text" && c.Tag != "document" {
+			realRootChildren++
+			if c.Tag == "html" {
+				htmlRoot = c
+			}
 		}
 	}
-	return node
+
+	// if there's exactly one true <html> tag, we can just return it, otherwise return the wrapper
+	if realRootChildren == 1 && htmlRoot != nil {
+		htmlRoot.Parent = nil
+		htmlRoot.Depth = 0
+		// We should technically patch its descendants' depths, but returning realRoot is standard. Let's just fix depths:
+		fixDepths(htmlRoot, 0)
+		return htmlRoot, nil
+	}
+
+	return root, nil
+}
+
+func fixDepths(node *model.DOMNode, depth int) {
+	node.Depth = depth
+	for _, c := range node.Children {
+		fixDepths(c, depth+1)
+	}
 }
