@@ -68,7 +68,7 @@ func Parse(rawHTML string) (*model.DOMNode, error) {
 
 			if tt == html.StartTagToken {
 				stack = append(stack, node)
-				lastAppended[node.ID] = nil // Reset last Appended for new level
+				lastAppended[node.ID] = nil
 			}
 
 		case html.EndTagToken:
@@ -106,7 +106,6 @@ func Parse(rawHTML string) (*model.DOMNode, error) {
 			lastAppended[parent.ID] = node
 
 		case html.CommentToken, html.DoctypeToken:
-			// Skip
 		}
 	}
 
@@ -125,7 +124,7 @@ func Parse(rawHTML string) (*model.DOMNode, error) {
 	if realRootChildren == 1 && htmlRoot != nil {
 		htmlRoot.Parent = nil
 		htmlRoot.Depth = 0
-		// We should technically patch its descendants' depths, but returning realRoot is standard. Let's just fix depths:
+
 		fixDepths(htmlRoot, 0)
 		return htmlRoot, nil
 	}
