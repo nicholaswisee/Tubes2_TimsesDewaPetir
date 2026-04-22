@@ -1,87 +1,109 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { SearchForm } from "../components/SearchForm";
+import { DomTreeGraph } from "../components/DomTreeGraph";
+import { searchDOM } from "../api/client";
+import type { SearchResponse, SearchRequest } from "../api/types";
 
-export const Route = createFileRoute('/')({ component: App })
+export const Route = createFileRoute("/")({ component: App });
 
 function App() {
-  return (
-    <main className="page-wrap px-4 pb-8 pt-14">
-      <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
-        <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
-        <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
-        <p className="island-kicker mb-3">TanStack Start Base Template</p>
-        <h1 className="display-title mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-[var(--sea-ink)] sm:text-6xl">
-          Start simple, ship quickly.
-        </h1>
-        <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
-          This base starter intentionally keeps things light: two routes, clean
-          structure, and the essentials you need to build from scratch.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <a
-            href="/about"
-            className="rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
-          >
-            About This Starter
-          </a>
-          <a
-            href="https://tanstack.com/router"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
-          >
-            Router Guide
-          </a>
-        </div>
-      </section>
+    const [result, setResult] = useState<SearchResponse | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<Error | null>(null);
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          [
-            'Type-Safe Routing',
-            'Routes and links stay in sync across every page.',
-          ],
-          [
-            'Server Functions',
-            'Call server code from your UI without creating API boilerplate.',
-          ],
-          [
-            'Streaming by Default',
-            'Ship progressively rendered responses for faster experiences.',
-          ],
-          [
-            'Tailwind Native',
-            'Design quickly with utility-first styling and reusable tokens.',
-          ],
-        ].map(([title, desc], index) => (
-          <article
-            key={title}
-            className="island-shell feature-card rise-in rounded-2xl p-5"
-            style={{ animationDelay: `${index * 90 + 80}ms` }}
-          >
-            <h2 className="mb-2 text-base font-semibold text-[var(--sea-ink)]">
-              {title}
-            </h2>
-            <p className="m-0 text-sm text-[var(--sea-ink-soft)]">{desc}</p>
-          </article>
-        ))}
-      </section>
+    const handleSearch = async (request: SearchRequest) => {
+        setIsLoading(true);
+        setError(null);
+        try {
+            const data = await searchDOM(request);
+            setResult(data);
+        } catch (err) {
+            setError(
+                err instanceof Error
+                    ? err
+                    : new Error("Unknown error occurred"),
+            );
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-      <section className="island-shell mt-8 rounded-2xl p-6">
-        <p className="island-kicker mb-2">Quick Start</p>
-        <ul className="m-0 list-disc space-y-2 pl-5 text-sm text-[var(--sea-ink-soft)]">
-          <li>
-            Edit <code>src/routes/index.tsx</code> to customize the home page.
-          </li>
-          <li>
-            Update <code>src/components/Header.tsx</code> and{' '}
-            <code>src/components/Footer.tsx</code> for brand links.
-          </li>
-          <li>
-            Add routes in <code>src/routes</code> and tweak visual tokens in{' '}
-            <code>src/styles.css</code>.
-          </li>
-        </ul>
-      </section>
-    </main>
-  )
+    const matchedNodeIds = new Set(result?.matches?.map((m) => m.id) || []);
+
+    return (
+        <main className="page-wrap px-4 pb-8 pt-10 min-h-screen">
+            <div className="max-w-6xl mx-auto flex flex-col gap-6">
+                <div className="text-center mb-4">
+                    <h1 className="text-4xl font-bold tracking-tight text-[var(--sea-ink)] sm:text-5xl mb-3">
+                        DOM Tree Visualizer
+                    </h1>
+                    <p className="text-[var(--sea-ink-soft)] max-w-2xl mx-auto">
+                        Input any URL and enter an optional CSS selector to
+                        fetch and visualize its graphical DOM structure. Nodes
+                        matching the selector will be highlighted.
+                    </p>
+                </div>
+
+                <SearchForm onSubmit={handleSearch} isLoading={isLoading} />
+
+                {error && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-700 text-sm">
+                        <p>
+                            <strong>Error Fetching DOM:</strong>
+                        </p>
+                        <p>{error.message}</p>
+                    </div>
+                )}
+
+                {result && (
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative">
+                        <div className="lg:col-span-2 bg-white rounded-[1.5rem] overflow-hidden flex flex-col h-[700px] border border-[var(--line)] relative shadow-md">
+                            <div className="absolute top-0 left-0 right-0 z-10 flex justify-between items-center p-4 bg-gradient-to-b from-white to-transparent pointer-events-none">
+                                <h2 className="text-xl font-semibold text-[var(--surface)] drop-shadow-sm">
+                                    DOM Tree Topography
+                                </h2>
+                                <div className="flex gap-4 text-xs font-mono drop-shadow-sm">
+                                    <span className="text-[var(--palm)] bg-[var(--sand)] px-2 py-1 rounded border border-[var(--palm)]/30 backdrop-blur-sm">
+                                        {result.matches?.length || 0} matches
+                                    </span>
+                                    <span className="text-[var(--lagoon-deep)] bg-[var(--foam)] px-2 py-1 rounded border border-[var(--lagoon)]/30 backdrop-blur-sm">
+                                        {result.visited_count} nodes visited
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="flex-1 w-full h-full custom-scrollbar">
+                                <DomTreeGraph
+                                    tree={result.tree}
+                                    matchedNodeIds={matchedNodeIds}
+                                />
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-1 flex flex-col gap-6">
+                            <div className="island-shell rounded-[1.5rem] p-6 border border-[var(--line)]">
+                                <h3 className="text-lg font-medium text-[var(--sea-ink)] mb-3">
+                                    Analytics
+                                </h3>
+                                <div className="space-y-3 font-mono text-sm">
+                                    <div className="flex justify-between text-[var(--sea-ink-soft)]">
+                                        <span>Traversal Time:</span>
+                                        <span className="text-[var(--palm)] font-semibold">
+                                            {result.duration_ms} ms
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between text-[var(--sea-ink-soft)]">
+                                        <span>Max Depth:</span>
+                                        <span className="text-[var(--lagoon-deep)] font-semibold">
+                                            {result.max_depth}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </main>
+    );
 }

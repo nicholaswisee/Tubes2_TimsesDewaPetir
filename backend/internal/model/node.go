@@ -24,7 +24,7 @@ type SearchRequest struct {
 	URL       string `json:"url"`
 	HTML      string `json:"html"` // raw HTML string
 	Algorithm string `json:"algorithm" binding:"required,oneof=bfs dfs"`
-	Selector  string `json:"selector"  binding:"required"`
+	Selector  string `json:"selector"`
 	Limit     int    `json:"limit"` // 0 = all, N = top N results
 }
 
