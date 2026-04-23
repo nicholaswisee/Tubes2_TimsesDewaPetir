@@ -15,14 +15,14 @@ services:
       - app-net
 
   frontend:
-    image: oven/bun:1
+    image: oven/bun:1-alpine
     working_dir: /app
     volumes:
       - ./frontend:/app         # bind-mount source for HMR
       - /app/node_modules       # keep node_modules inside the container
     ports:
       - "3000:3000"
-    command: sh -c "bun install && bun run dev --host"
+    command: sh -c "bun install && bun run dev -- --host"
     depends_on:
       - backend
     environment:

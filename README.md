@@ -19,23 +19,27 @@ cd Tubes2_TimsesDewaPetir
 docker compose up --build
 ```
 
-| Service  | URL                        | Notes |
-|----------|----------------------------|-------|
-| Frontend | http://localhost:3000      | Bun dev server with HMR |
-| Backend  | http://localhost:8080      | Gin with air hot-reload |
+| Service  | URL                              | Notes                           |
+| -------- | -------------------------------- | ------------------------------- |
+| Frontend | http://localhost:3000            | Bun dev server with HMR         |
+| Backend  | http://localhost:8080            | Gin with air hot-reload         |
 | Health   | http://localhost:8080/api/health | Should return `{"status":"ok"}` |
 
 ### Hot reload
+
 - **Backend** — edit any `.go` file and air automatically rebuilds and restarts the server. No manual step needed.
 - **Frontend** — Bun's dev server reloads the browser on file save via HMR.
 
 ### Stopping
+
 ```bash
 docker compose down
 ```
 
 ### Rebuilding after dependency changes
+
 If you add a Go module (`go get ...`) or a new npm/bun package, rebuild the images:
+
 ```bash
 docker compose up --build
 ```
