@@ -2,7 +2,9 @@ import axios from 'axios';
 import type { SearchRequest, SearchResponse } from './types';
 
 const apiClient = axios.create({
-  baseURL: typeof window === 'undefined' ? 'http://backend:8080/api' : '/api',
+  baseURL: typeof window === 'undefined' 
+    ? 'http://backend:8080/api' 
+    : (import.meta.env.DEV ? 'http://localhost:8080/api' : '/api'),
   headers: {
     'Content-Type': 'application/json',
   },

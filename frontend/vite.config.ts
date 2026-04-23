@@ -18,13 +18,6 @@ const config = defineConfig({
     viteReact(),
   ],
   server: {
-    proxy: {
-      '/api': {
-        // Default to localhost, but allow override for Docker environments
-        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8080',
-        changeOrigin: true,
-      },
-    },
   },
 })
 
