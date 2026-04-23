@@ -22,12 +22,8 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     return (
         <form
             onSubmit={handleSubmit}
-            className="island-shell rise-in rounded-[1.5rem] p-6 mb-8 flex flex-col gap-4 max-w-3xl mx-auto w-full"
+            className="flex flex-col gap-4 w-full"
         >
-            <h2 className="text-xl font-semibold text-[var(--sea-ink)] mb-2">
-                Analyze Target URL
-            </h2>
-
             <div className="flex flex-col gap-1.5">
                 <label
                     htmlFor="url"
@@ -42,79 +38,77 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                     onChange={(e) => setUrl(e.target.value)}
                     placeholder="https://example.com"
                     required
-                    className="rounded-xl border border-[rgba(23,58,64,0.15)] bg-white/50 px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)]"
+                    className="rounded-xl border border-[var(--line)] bg-white px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)]"
                 />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="flex flex-col gap-1.5 sm:col-span-1">
-                    <label
-                        htmlFor="selector"
-                        className="text-sm font-medium text-[var(--sea-ink-soft)] w-max"
-                    >
-                        CSS Selector (Optional)
-                    </label>
-                    <input
-                        id="selector"
-                        type="text"
-                        value={selector}
-                        onChange={(e) => setSelector(e.target.value)}
-                        placeholder="e.g. div.container"
-                        className="rounded-xl border border-[rgba(23,58,64,0.15)] bg-white/50 px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)]"
-                    />
-                </div>
+            <div className="flex flex-col gap-1.5">
+                <label
+                    htmlFor="selector"
+                    className="text-sm font-medium text-[var(--sea-ink-soft)] w-max"
+                >
+                    CSS Selector (Optional)
+                </label>
+                <input
+                    id="selector"
+                    type="text"
+                    value={selector}
+                    onChange={(e) => setSelector(e.target.value)}
+                    placeholder="e.g. div.container"
+                    className="rounded-xl border border-[var(--line)] bg-white px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)]"
+                />
+            </div>
 
-                <div className="flex flex-col gap-1.5">
-                    <label
-                        htmlFor="limit"
-                        className="text-sm font-medium text-[var(--sea-ink-soft)] w-max"
-                    >
-                        Top N Matches (0 = All)
-                    </label>
-                    <input
-                        id="limit"
-                        type="number"
-                        min="0"
-                        value={limit}
-                        onChange={(e) =>
-                            setLimit(parseInt(e.target.value) || 0)
-                        }
-                        className="rounded-xl border border-[rgba(23,58,64,0.15)] bg-white/50 px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)]"
-                    />
-                </div>
+            <div className="flex flex-col gap-1.5">
+                <label
+                    htmlFor="limit"
+                    className="text-sm font-medium text-[var(--sea-ink-soft)] w-max"
+                >
+                    Top N Matches (0 = All)
+                </label>
+                <input
+                    id="limit"
+                    type="number"
+                    min="0"
+                    value={limit}
+                    onChange={(e) =>
+                        setLimit(parseInt(e.target.value) || 0)
+                    }
+                    className="rounded-xl border border-[var(--line)] bg-white px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)]"
+                />
+            </div>
 
-                <div className="flex flex-col gap-1.5">
-                    <span className="text-sm font-medium text-[var(--sea-ink-soft)] w-max">
-                        Algorithm
-                    </span>
-                    <div className="flex gap-2 h-full items-center">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="radio"
-                                name="algorithm"
-                                value="bfs"
-                                checked={algorithm === "bfs"}
-                                onChange={() => setAlgorithm("bfs")}
-                                className="text-[rgba(79,184,178,1)] focus:ring-[rgba(79,184,178,0.2)]"
-                            />
-                            <span className="text-sm text-[var(--sea-ink)]">
-                                BFS
-                            </span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer ml-4">
-                            <input
-                                type="radio"
-                                name="algorithm"
-                                value="dfs"
-                                checked={algorithm === "dfs"}
-                                onChange={() => setAlgorithm("dfs")}
-                                className="text-[rgba(79,184,178,1)] focus:ring-[rgba(79,184,178,0.2)]"
-                            />
-                            <span className="text-sm text-[var(--sea-ink)]">
-                                DFS
-                            </span>
-                        </label>
-                    </div>
+            <div className="flex flex-col gap-1.5 mb-2">
+                <span className="text-sm font-medium text-[var(--sea-ink-soft)] w-max">
+                    Algorithm
+                </span>
+                <div className="flex gap-4 items-center mt-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                            type="radio"
+                            name="algorithm"
+                            value="bfs"
+                            checked={algorithm === "bfs"}
+                            onChange={() => setAlgorithm("bfs")}
+                            className="text-[rgba(79,184,178,1)] focus:ring-[rgba(79,184,178,0.2)]"
+                        />
+                        <span className="text-sm text-[var(--sea-ink)]">
+                            BFS
+                        </span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                            type="radio"
+                            name="algorithm"
+                            value="dfs"
+                            checked={algorithm === "dfs"}
+                            onChange={() => setAlgorithm("dfs")}
+                            className="text-[rgba(79,184,178,1)] focus:ring-[rgba(79,184,178,0.2)]"
+                        />
+                        <span className="text-sm text-[var(--sea-ink)]">
+                            DFS
+                        </span>
+                    </label>
                 </div>
             </div>
 
