@@ -12,9 +12,6 @@ type bfsNodeResult struct {
 	matched bool
 }
 
-// BFSParallel runs a level-synchronized parallel BFS.
-// All nodes at the same depth level are evaluated concurrently via goroutines.
-// Results are collected in deterministic (index-within-level) order after each level completes.
 func BFSParallel(root *model.DOMNode, match func(*model.DOMNode) bool, limit int) (
 	[]*model.DOMNode, []model.TraversalStep, []model.AnimationFrame, int,
 ) {
@@ -23,10 +20,10 @@ func BFSParallel(root *model.DOMNode, match func(*model.DOMNode) bool, limit int
 	}
 
 	var (
-		allMatches  []*model.DOMNode
-		allLog      []model.TraversalStep
-		allFrames   []model.AnimationFrame
-		matchedIDs  []int
+		allMatches   []*model.DOMNode
+		allLog       []model.TraversalStep
+		allFrames    []model.AnimationFrame
+		matchedIDs   []int
 		visitedCount int
 	)
 
@@ -34,7 +31,6 @@ func BFSParallel(root *model.DOMNode, match func(*model.DOMNode) bool, limit int
 
 	for len(currentLevel) > 0 {
 		levelSize := len(currentLevel)
-		// Pre-allocate indexed by position — goroutine i writes results[i] only, no race.
 		results := make([]bfsNodeResult, levelSize)
 
 		var wg sync.WaitGroup
@@ -58,7 +54,6 @@ func BFSParallel(root *model.DOMNode, match func(*model.DOMNode) bool, limit int
 		}
 		wg.Wait()
 
-		// Sequential post-processing: collect log, matches, and next level in index order.
 		var nextLevel []*model.DOMNode
 		for _, res := range results {
 			allLog = append(allLog, res.step)
@@ -69,8 +64,6 @@ func BFSParallel(root *model.DOMNode, match func(*model.DOMNode) bool, limit int
 			nextLevel = append(nextLevel, res.node.Children...)
 		}
 
-		// Build animation frames sequentially, reconstructing the queue snapshot for each node.
-		// Queue at the moment node[i] is "active" = remaining nodes in this level + children of nodes 0..i.
 		childrenSoFar := 0
 		for i, res := range results {
 			childrenThisNode := len(res.node.Children)
