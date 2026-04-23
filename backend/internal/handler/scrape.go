@@ -11,7 +11,7 @@ import (
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/traversal"
 )
 
-// Global memory for advanced endpoints like LCA to hook back into the last parsed document.
+// Global memory
 var LastParsedTree *model.DOMNode
 
 func RegisterRoutes(r *gin.Engine) {
@@ -63,24 +63,26 @@ func Search(c *gin.Context) {
 	start := time.Now()
 	var matches []*model.DOMNode
 	var log []model.TraversalStep
+	var frames []model.AnimationFrame
 	var visitedCount int
 
 	switch req.Algorithm {
 	case "bfs":
-		matches, log, visitedCount = traversal.BFS(tree, matchFunc, req.Limit)
+		matches, log, frames, visitedCount = traversal.BFS(tree, matchFunc, req.Limit)
 	case "dfs":
-		matches, log, visitedCount = traversal.DFS(tree, matchFunc, req.Limit)
+		matches, log, frames, visitedCount = traversal.DFS(tree, matchFunc, req.Limit)
 	}
 	durationMs := time.Since(start).Milliseconds()
 
 	maxDepth := model.MaxDepth(tree)
 
 	c.JSON(http.StatusOK, model.SearchResponse{
-		Tree:         tree,
-		MaxDepth:     maxDepth,
-		Matches:      matches,
-		VisitedCount: visitedCount,
-		DurationMs:   durationMs,
-		TraversalLog: log,
+		Tree:            tree,
+		MaxDepth:        maxDepth,
+		Matches:         matches,
+		VisitedCount:    visitedCount,
+		DurationMs:      durationMs,
+		TraversalLog:    log,
+		AnimationFrames: frames,
 	})
 }

@@ -12,7 +12,6 @@ type DOMNode struct {
 	PreviousSibling *DOMNode          `json:"-"` // Added for Combinators
 }
 
-// Individual traversal step for highlighting
 type TraversalStep struct {
 	NodeID  int    `json:"node_id"`
 	Tag     string `json:"tag"`
@@ -28,12 +27,21 @@ type SearchRequest struct {
 	Limit     int    `json:"limit"` // 0 = all, N = top N results
 }
 
+type AnimationFrame struct {
+	Step       int   `json:"step"`        
+	ActiveID   int   `json:"active_id"`   
+	QueueIDs   []int `json:"queue_ids"`   
+	StackIDs   []int `json:"stack_ids"`   	
+	MatchedIDs []int `json:"matched_ids"` 	
+}
+
 // SearchResponse is returned by POST /api/search.
 type SearchResponse struct {
-	Tree         *DOMNode        `json:"tree"` // full DOM tree for visualization
-	MaxDepth     int             `json:"max_depth"`
-	Matches      []*DOMNode      `json:"matches"` // nodes that matched the selector
-	VisitedCount int             `json:"visited_count"`
-	DurationMs   int64           `json:"duration_ms"`
-	TraversalLog []TraversalStep `json:"traversal_log"` // ordered step-by-step log
+	Tree            *DOMNode         `json:"tree"` 
+	MaxDepth        int              `json:"max_depth"`
+	Matches         []*DOMNode       `json:"matches"` 
+	VisitedCount    int              `json:"visited_count"`
+	DurationMs      int64            `json:"duration_ms"`
+	TraversalLog    []TraversalStep  `json:"traversal_log"`    
+	AnimationFrames []AnimationFrame `json:"animation_frames"` 
 }
