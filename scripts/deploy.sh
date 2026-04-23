@@ -1,7 +1,3 @@
-#!/bin/bash
-# Deployment script for Linux/WSL
-# Usage: ./scripts/deploy.sh
-
 echo -e "\e[36m--- Syncing Commits and Redeploying ---\e[0m"
 
 # 1. Pull latest changes
@@ -15,6 +11,10 @@ if docker compose version >/dev/null 2>&1; then
     DOCKER_CMD="docker compose"
 else
     DOCKER_CMD="docker-compose"
+fi
+
+if ! $DOCKER_CMD -f docker-compose.prod.yml down; then
+    echo -e "\e[33mWarning: Failed to stop containers. Proceeding anyway...\e[0m"
 fi
 
 if ! $DOCKER_CMD -f docker-compose.prod.yml up -d --build; then
