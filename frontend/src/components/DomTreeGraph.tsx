@@ -28,7 +28,7 @@ function convertToD3Tree(
     node: DOMNode,
     matched: Set<number>,
     activeId?: number,
-    tracked?: Set<number>
+    tracked?: Set<number>,
 ): RawNodeDatum {
     const textPreview =
         node.tag === "#text"
@@ -62,7 +62,9 @@ function convertToD3Tree(
         attributes: attrs,
         children:
             node.children && node.children.length > 0
-                ? node.children.map((c) => convertToD3Tree(c, matched, activeId, tracked))
+                ? node.children.map((c) =>
+                      convertToD3Tree(c, matched, activeId, tracked),
+                  )
                 : undefined,
     };
 }
@@ -78,7 +80,7 @@ function makeNodeRenderer(
         const isMatched = nodeDatum.attributes?._matched === "true";
         const isActive = nodeDatum.attributes?._active === "true";
         const isTracked = nodeDatum.attributes?._tracked === "true";
-        
+
         const textPreview = (nodeDatum.attributes?._text as string) || "";
         const isTextNode = nodeDatum.name === "#text";
 
@@ -88,11 +90,11 @@ function makeNodeRenderer(
 
         if (isActive) {
             strokeColor = "#ea580c"; // Orange border
-            fillColor = "#ffedd5";  // Pale orange fill
+            fillColor = "#ffedd5"; // Pale orange fill
             strokeWidth = 4;
         } else if (isMatched) {
             strokeColor = "#173a40"; // Dark border
-            fillColor = "#4fb8b2";   // Teal fill
+            fillColor = "#4fb8b2"; // Teal fill
             strokeWidth = 4;
         } else if (isTracked) {
             strokeColor = "#38bdf8"; // Light blue outline
@@ -101,12 +103,20 @@ function makeNodeRenderer(
         }
 
         const handleMouseEnter = (e: React.MouseEvent) => {
-            const rect = containerRef.current?.getBoundingClientRect();
-            if (!rect) return;
+            const containerRect = containerRef.current?.getBoundingClientRect();
+            const nodeRect = (
+                e.currentTarget as SVGGElement
+            ).getBoundingClientRect();
+            if (!containerRect || !nodeRect) return;
+
             setTooltip({
                 visible: true,
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
+                x:
+                    nodeRect.left -
+                    containerRect.left +
+                    nodeRect.width / 2 -
+                    100, // Roughly center the tooltip horizontally relative to the node
+                y: nodeRect.top - containerRect.top + nodeRect.height + 15, // Anchor slightly below the node
                 tag: nodeDatum.name,
                 id: (nodeDatum.attributes?._rawId as string) || "",
                 cls: (nodeDatum.attributes?._rawClass as string) || "",
@@ -118,26 +128,12 @@ function makeNodeRenderer(
             });
         };
 
-        const handleMouseMove = (e: React.MouseEvent) => {
-            const rect = containerRef.current?.getBoundingClientRect();
-            if (!rect) return;
-            setTooltip((prev) => ({
-                ...prev,
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top,
-            }));
-        };
-
         const handleMouseLeave = () => {
             setTooltip((prev) => ({ ...prev, visible: false }));
         };
 
         return (
-            <g
-                onMouseEnter={handleMouseEnter}
-                onMouseMove={handleMouseMove}
-                onMouseLeave={handleMouseLeave}
-            >
+            <g onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
                 <circle
                     r={15}
                     onClick={toggleNode}
@@ -180,7 +176,12 @@ function makeNodeRenderer(
     };
 }
 
-export function DomTreeGraph({ tree, matchedNodeIds, activeNodeId, trackingIds }: DomTreeGraphProps) {
+export function DomTreeGraph({
+    tree,
+    matchedNodeIds,
+    activeNodeId,
+    trackingIds,
+}: DomTreeGraphProps) {
     const [zoom] = useState(0.8);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -199,7 +200,12 @@ export function DomTreeGraph({ tree, matchedNodeIds, activeNodeId, trackingIds }
     });
 
     // Recompute layout whenever the animation props change
-    const d3Data = convertToD3Tree(tree, matchedNodeIds, activeNodeId, trackingIds);
+    const d3Data = convertToD3Tree(
+        tree,
+        matchedNodeIds,
+        activeNodeId,
+        trackingIds,
+    );
 
     const nodeRenderer = useCallback(
         makeNodeRenderer(setTooltip, containerRef),
@@ -272,11 +278,13 @@ export function DomTreeGraph({ tree, matchedNodeIds, activeNodeId, trackingIds }
                                 Matched
                             </span>
                         )}
-                        {tooltip.isTracked && !tooltip.isMatched && !tooltip.isActive && (
-                            <span className="text-[10px] text-blue-300 font-semibold bg-blue-500/15 px-1.5 py-0.5 rounded-full">
-                                Target Queue/Stack
-                            </span>
-                        )}
+                        {tooltip.isTracked &&
+                            !tooltip.isMatched &&
+                            !tooltip.isActive && (
+                                <span className="text-[10px] text-blue-300 font-semibold bg-blue-500/15 px-1.5 py-0.5 rounded-full">
+                                    Target Queue/Stack
+                                </span>
+                            )}
                     </div>
 
                     <div className="text-[var(--sea-ink-soft)] text-[10px] mb-1.5">
