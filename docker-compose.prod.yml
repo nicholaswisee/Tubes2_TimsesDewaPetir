@@ -5,19 +5,17 @@ services:
     restart: unless-stopped
     environment:
       GIN_MODE: release
-      FRONTEND_ORIGIN: "http://THE_VM_IP" # Edit nanti kalo udah deploy
-    # Port 8080 is NOT exposed externally — only Caddy talks to it via app-net.
+      FRONTEND_ORIGIN: "http://${VM_IP}" # Set this in your VM's .env file
+    env_file:
+      - .env
     networks:
       - app-net
-
+  
   frontend:
     build:
       context: ./frontend    # runs the production SSR server
     restart: unless-stopped
-    environment:
-      # SSR server-to-server: no CORS, uses Docker DNS name
-      VITE_API_URL: "http://backend:8080"
-    # Port 3000 is NOT exposed externally — Caddy proxies to it.
+    # 3000 is NOT exposed externally — Caddy proxies to it.
     depends_on:
       - backend
     networks:
