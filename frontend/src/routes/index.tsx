@@ -93,7 +93,6 @@ function App() {
                 )}
             </aside>
 
-            {/* Mobile Layout Fallback */}
             <div className="sm:hidden w-full h-full flex flex-col items-center justify-center p-6 text-center bg-white">
                 <p className="text-xl font-bold text-[var(--sea-ink)]">
                     Desktop Recommended
@@ -103,7 +102,6 @@ function App() {
                 </p>
             </div>
 
-            {/* Main Canvas Area */}
             <section className="hidden sm:flex flex-1 relative bg-white flex-col">
                 {result ? (
                     <>
@@ -136,10 +134,10 @@ function App() {
                                 ></path>
                             </svg>
                         </div>
-                        <p className="text-xl font-semibold text-[var(--sea-ink)]">
+                        <p className="text-xl font-semibold text-[var(--surface)]">
                             Awaiting Target
                         </p>
-                        <p className="text-[var(--sea-ink-soft)] mt-2 text-sm max-w-sm text-center">
+                        <p className="text-[var(--surface)] mt-2 text-sm max-w-sm text-center">
                             Configure search parameters in the side panel to
                             begin tracing an HTML structure.
                         </p>
