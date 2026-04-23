@@ -19,10 +19,9 @@ const config = defineConfig({
   ],
   server: {
     proxy: {
-      // During local dev, browser requests to /api are proxied to the backend.
-      // This avoids CORS entirely for the browser — no preflight needed.
       '/api': {
-        target: 'http://localhost:8080',
+        // Default to localhost, but allow override for Docker environments
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8080',
         changeOrigin: true,
       },
     },
