@@ -6,6 +6,8 @@ import type { DOMNode } from "../api/types";
 interface DomTreeGraphProps {
     tree: DOMNode;
     matchedNodeIds: Set<number>;
+    activeNodeId?: number;
+    trackingIds?: Set<number>; // Stack or Queue
 }
 
 interface TooltipState {
@@ -17,10 +19,17 @@ interface TooltipState {
     cls: string;
     text: string;
     isMatched: boolean;
+    isActive: boolean;
+    isTracked: boolean;
     nodeId: string;
 }
 
-function convertToD3Tree(node: DOMNode, matched: Set<number>): RawNodeDatum {
+function convertToD3Tree(
+    node: DOMNode,
+    matched: Set<number>,
+    activeId?: number,
+    tracked?: Set<number>
+): RawNodeDatum {
     const textPreview =
         node.tag === "#text"
             ? node.text && node.text.length > 60
@@ -29,10 +38,14 @@ function convertToD3Tree(node: DOMNode, matched: Set<number>): RawNodeDatum {
             : "";
 
     const isMatched = matched.has(node.id);
+    const isActive = activeId === node.id;
+    const isTracked = tracked?.has(node.id) ?? false;
 
     const attrs: Record<string, string> = {
         _id: node.id.toString(),
         _matched: isMatched.toString(),
+        _active: isActive.toString(),
+        _tracked: isTracked.toString(),
         _text: textPreview,
         _rawId: node.attributes?.id || "",
         _rawClass: node.attributes?.class || "",
@@ -49,12 +62,11 @@ function convertToD3Tree(node: DOMNode, matched: Set<number>): RawNodeDatum {
         attributes: attrs,
         children:
             node.children && node.children.length > 0
-                ? node.children.map((c) => convertToD3Tree(c, matched))
+                ? node.children.map((c) => convertToD3Tree(c, matched, activeId, tracked))
                 : undefined,
     };
 }
 
-// The node renderer is defined outside so it can receive the tooltip setter
 function makeNodeRenderer(
     setTooltip: React.Dispatch<React.SetStateAction<TooltipState>>,
     containerRef: React.RefObject<HTMLDivElement | null>,
@@ -64,12 +76,29 @@ function makeNodeRenderer(
         toggleNode,
     }: CustomNodeElementProps) {
         const isMatched = nodeDatum.attributes?._matched === "true";
+        const isActive = nodeDatum.attributes?._active === "true";
+        const isTracked = nodeDatum.attributes?._tracked === "true";
+        
         const textPreview = (nodeDatum.attributes?._text as string) || "";
         const isTextNode = nodeDatum.name === "#text";
 
-        const strokeColor = isMatched ? "#173a40" : "#4fb8b2";
-        const strokeWidth = isMatched ? 4 : 2;
-        const fillColor = isMatched ? "#4fb8b2" : "#ffffff";
+        let strokeColor = "#4fb8b2";
+        let fillColor = "#ffffff";
+        let strokeWidth = 2;
+
+        if (isActive) {
+            strokeColor = "#ea580c"; // Orange border
+            fillColor = "#ffedd5";  // Pale orange fill
+            strokeWidth = 4;
+        } else if (isMatched) {
+            strokeColor = "#173a40"; // Dark border
+            fillColor = "#4fb8b2";   // Teal fill
+            strokeWidth = 4;
+        } else if (isTracked) {
+            strokeColor = "#38bdf8"; // Light blue outline
+            fillColor = "#f0f9ff";
+            strokeWidth = 2;
+        }
 
         const handleMouseEnter = (e: React.MouseEvent) => {
             const rect = containerRef.current?.getBoundingClientRect();
@@ -83,6 +112,8 @@ function makeNodeRenderer(
                 cls: (nodeDatum.attributes?._rawClass as string) || "",
                 text: textPreview,
                 isMatched,
+                isActive,
+                isTracked,
                 nodeId: (nodeDatum.attributes?._id as string) || "",
             });
         };
@@ -113,7 +144,7 @@ function makeNodeRenderer(
                     fill={fillColor}
                     stroke={strokeColor}
                     strokeWidth={strokeWidth}
-                    style={{ cursor: "pointer" }}
+                    style={{ cursor: "pointer", transition: "all 0.2s ease" }}
                 />
                 <text
                     fill="#000000"
@@ -123,7 +154,7 @@ function makeNodeRenderer(
                     style={{
                         fontSize: "13px",
                         fontFamily: "monospace",
-                        fontWeight: isMatched ? "bold" : "normal",
+                        fontWeight: isMatched || isActive ? "bold" : "normal",
                         userSelect: "none",
                     }}
                     onClick={toggleNode}
@@ -149,7 +180,7 @@ function makeNodeRenderer(
     };
 }
 
-export function DomTreeGraph({ tree, matchedNodeIds }: DomTreeGraphProps) {
+export function DomTreeGraph({ tree, matchedNodeIds, activeNodeId, trackingIds }: DomTreeGraphProps) {
     const [zoom] = useState(0.8);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -162,12 +193,14 @@ export function DomTreeGraph({ tree, matchedNodeIds }: DomTreeGraphProps) {
         cls: "",
         text: "",
         isMatched: false,
+        isActive: false,
+        isTracked: false,
         nodeId: "",
     });
 
-    const d3Data = convertToD3Tree(tree, matchedNodeIds);
+    // Recompute layout whenever the animation props change
+    const d3Data = convertToD3Tree(tree, matchedNodeIds, activeNodeId, trackingIds);
 
-    // Stable renderer, recreated only if refs change (which they don't)
     const nodeRenderer = useCallback(
         makeNodeRenderer(setTooltip, containerRef),
         [],
@@ -198,6 +231,7 @@ export function DomTreeGraph({ tree, matchedNodeIds }: DomTreeGraphProps) {
                 translate={{ x: 50, y: 300 }}
                 nodeSize={{ x: 200, y: 70 }}
                 separation={{ siblings: 1.2, nonSiblings: 1.5 }}
+                transitionDuration={200}
             />
 
             {/* Hover Tooltip */}
@@ -214,8 +248,7 @@ export function DomTreeGraph({ tree, matchedNodeIds }: DomTreeGraphProps) {
                     }}
                     className="bg-[#0f1c1e] text-white rounded-xl px-4 py-3 text-xs font-mono shadow-2xl border border-[var(--lagoon)]/30 min-w-[180px] max-w-[280px]"
                 >
-                    {/* Tag pill */}
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span
                             className={`px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide ${
                                 tooltip.tag === "#text"
@@ -229,19 +262,27 @@ export function DomTreeGraph({ tree, matchedNodeIds }: DomTreeGraphProps) {
                                 ? "#text"
                                 : `<${tooltip.tag}>`}
                         </span>
+                        {tooltip.isActive && (
+                            <span className="text-[10px] text-orange-200 font-semibold bg-orange-500/40 px-1.5 py-0.5 rounded-full border border-orange-400">
+                                Evaluating
+                            </span>
+                        )}
                         {tooltip.isMatched && (
                             <span className="text-[10px] text-amber-300 font-semibold bg-amber-500/15 px-1.5 py-0.5 rounded-full">
-                                matched
+                                Matched
+                            </span>
+                        )}
+                        {tooltip.isTracked && !tooltip.isMatched && !tooltip.isActive && (
+                            <span className="text-[10px] text-blue-300 font-semibold bg-blue-500/15 px-1.5 py-0.5 rounded-full">
+                                Target Queue/Stack
                             </span>
                         )}
                     </div>
 
-                    {/* Node ID */}
                     <div className="text-[var(--sea-ink-soft)] text-[10px] mb-1.5">
                         Node #{tooltip.nodeId}
                     </div>
 
-                    {/* Attributes */}
                     {tooltip.id && (
                         <div className="flex gap-1.5 items-start mb-1">
                             <span className="text-[#4fb8b2] shrink-0">#id</span>
@@ -268,11 +309,6 @@ export function DomTreeGraph({ tree, matchedNodeIds }: DomTreeGraphProps) {
                             <span className="text-slate-400 italic break-all">
                                 &ldquo;{tooltip.text}&rdquo;
                             </span>
-                        </div>
-                    )}
-                    {!tooltip.id && !tooltip.cls && !tooltip.text && (
-                        <div className="text-slate-500 italic text-[10px]">
-                            No attributes
                         </div>
                     )}
                 </div>

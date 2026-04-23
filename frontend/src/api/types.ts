@@ -22,6 +22,14 @@ export interface SearchRequest {
   limit: number;
 }
 
+export interface AnimationFrame {
+  step: number;
+  active_id: number;
+  queue_ids: number[];
+  stack_ids: number[];
+  matched_ids: number[];
+}
+
 export interface SearchResponse {
   tree: DOMNode;
   max_depth: number;
@@ -29,4 +37,5 @@ export interface SearchResponse {
   visited_count: number;
   duration_ms: number;
   traversal_log: TraversalStep[];
+  animation_frames: AnimationFrame[];
 }
