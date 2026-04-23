@@ -1,24 +1,32 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/logger"
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/model"
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/scraper"
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/selector"
 	"github.com/nicholaswisee/Tubes2_TimsesDewaPetir/backend/internal/traversal"
 )
 
-// Global memory
 var LastParsedTree *model.DOMNode
+
+var (
+	latestLogMu   sync.RWMutex
+	latestLogPath string
+)
 
 func RegisterRoutes(r *gin.Engine) {
 	api := r.Group("/api")
 	{
 		api.GET("/health", Health)
 		api.POST("/search", Search)
+		api.GET("/log/latest", DownloadLatestLog)
 	}
 }
 
@@ -34,6 +42,7 @@ func Search(c *gin.Context) {
 	}
 
 	rawHTML := req.HTML
+	source := fmt.Sprintf("HTML: (raw input)")
 	if rawHTML == "" {
 		if req.URL == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "isi URL atau HTML"})
@@ -45,6 +54,7 @@ func Search(c *gin.Context) {
 			return
 		}
 		rawHTML = fetched
+		source = fmt.Sprintf("URL: %s", req.URL)
 	}
 
 	tree, err := scraper.Parse(rawHTML)
@@ -68,13 +78,40 @@ func Search(c *gin.Context) {
 
 	switch req.Algorithm {
 	case "bfs":
-		matches, log, frames, visitedCount = traversal.BFS(tree, matchFunc, req.Limit)
+		if req.Parallel {
+			matches, log, frames, visitedCount = traversal.BFSParallel(tree, matchFunc, req.Limit)
+		} else {
+			matches, log, frames, visitedCount = traversal.BFS(tree, matchFunc, req.Limit)
+		}
 	case "dfs":
-		matches, log, frames, visitedCount = traversal.DFS(tree, matchFunc, req.Limit)
+		if req.Parallel {
+			matches, log, frames, visitedCount = traversal.DFSParallel(tree, matchFunc, req.Limit)
+		} else {
+			matches, log, frames, visitedCount = traversal.DFS(tree, matchFunc, req.Limit)
+		}
 	}
 	durationMs := time.Since(start).Milliseconds()
 
 	maxDepth := model.MaxDepth(tree)
+
+	// Save traversal log to file (non-blocking)
+	go func() {
+		path, saveErr := logger.SaveTraversalLog(
+			req.Algorithm,
+			req.Selector,
+			source,
+			log,
+			len(matches),
+			visitedCount,
+			maxDepth,
+			durationMs,
+		)
+		if saveErr == nil {
+			latestLogMu.Lock()
+			latestLogPath = path
+			latestLogMu.Unlock()
+		}
+	}()
 
 	c.JSON(http.StatusOK, model.SearchResponse{
 		Tree:            tree,
@@ -85,4 +122,19 @@ func Search(c *gin.Context) {
 		TraversalLog:    log,
 		AnimationFrames: frames,
 	})
+}
+
+func DownloadLatestLog(c *gin.Context) {
+	latestLogMu.RLock()
+	path := latestLogPath
+	latestLogMu.RUnlock()
+
+	if path == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no log available yet — run a search first"})
+		return
+	}
+
+	c.Header("Content-Disposition", "attachment; filename=traversal_log.log")
+	c.Header("Content-Type", "text/plain; charset=utf-8")
+	c.File(path)
 }

@@ -24,7 +24,8 @@ type SearchRequest struct {
 	HTML      string `json:"html"` // raw HTML string
 	Algorithm string `json:"algorithm" binding:"required,oneof=bfs dfs"`
 	Selector  string `json:"selector"`
-	Limit     int    `json:"limit"` // 0 = all, N = top N results
+	Limit     int    `json:"limit"`    // 0 = all, N = top N results
+	Parallel  bool   `json:"parallel"` // true = use parallel (multithreaded) variant
 }
 
 type AnimationFrame struct {

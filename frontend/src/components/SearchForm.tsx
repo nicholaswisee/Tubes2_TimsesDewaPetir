@@ -11,12 +11,13 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
     const [selector, setSelector] = useState("");
     const [limit, setLimit] = useState<number>(0);
     const [algorithm, setAlgorithm] = useState<"bfs" | "dfs">("bfs");
+    const [parallel, setParallel] = useState<boolean>(false);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!url) return;
 
-        onSubmit({ url, selector, algorithm, limit });
+        onSubmit({ url, selector, algorithm, limit, parallel });
     };
 
     return (
@@ -106,6 +107,27 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                     </label>
                 </div>
             </div>
+
+            <label className="flex items-center gap-3 cursor-pointer select-none px-1">
+                <div
+                    onClick={() => setParallel((p) => !p)}
+                    className={`relative w-9 h-5 rounded-full transition-colors duration-200 flex-shrink-0 ${
+                        parallel ? "bg-[var(--lagoon)]" : "bg-[var(--line)]"
+                    }`}
+                >
+                    <span
+                        className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                            parallel ? "translate-x-4" : "translate-x-0"
+                        }`}
+                    />
+                </div>
+                <div>
+                    <p className="text-sm font-medium text-[var(--sea-ink)] leading-tight">Multithreading</p>
+                    <p className="text-[11px] text-[var(--sea-ink-soft)] leading-tight">
+                        {algorithm === "bfs" ? "Level-parallel BFS" : "Subtree-parallel DFS"}
+                    </p>
+                </div>
+            </label>
 
             <button
                 type="submit"

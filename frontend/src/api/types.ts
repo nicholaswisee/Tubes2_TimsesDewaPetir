@@ -20,6 +20,7 @@ export interface SearchRequest {
   algorithm: 'bfs' | 'dfs';
   selector: string;
   limit: number;
+  parallel?: boolean;
 }
 
 export interface AnimationFrame {
