@@ -288,8 +288,7 @@ function Toolbar({ nodeCount }: { nodeCount: number }) {
 
 // ─── Inner canvas (needs ReactFlowProvider as ancestor) ──────────────────────
 
-<<<<<<< HEAD
-function FlowCanvas({ log, activeNodeId, matchedNodeIds, trackingIds }: DomTreeGraphProps) {
+function FlowCanvas({ log, activeNodeId, matchedNodeIds, trackingIds, lcaHighlight }: DomTreeGraphProps) {
     // Static layout — built once, passed as-is to ReactFlow every render.
     // ReactFlow receives the same array reference → zero internal diffing per frame.
     const { filtered, truncated } = useMemo(
@@ -297,10 +296,6 @@ function FlowCanvas({ log, activeNodeId, matchedNodeIds, trackingIds }: DomTreeG
         [log, matchedNodeIds],
     );
     const { nodes, edges } = useMemo(() => buildLayout(filtered), [filtered]);
-=======
-function FlowCanvas({ log, activeNodeId, matchedNodeIds, trackingIds, lcaHighlight }: DomTreeGraphProps) {
-    const { nodes, edges } = useMemo(() => buildLayout(log), [log]);
->>>>>>> main
 
     const animState = useMemo<AnimState>(
         () => ({
