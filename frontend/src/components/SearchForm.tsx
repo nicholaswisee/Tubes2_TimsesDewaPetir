@@ -6,8 +6,12 @@ interface SearchFormProps {
     isLoading: boolean;
 }
 
+type InputMode = "url" | "html";
+
 export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
+    const [mode, setMode] = useState<InputMode>("url");
     const [url, setUrl] = useState("");
+    const [rawHtml, setRawHtml] = useState("");
     const [selector, setSelector] = useState("");
     const [limit, setLimit] = useState<number>(0);
     const [algorithm, setAlgorithm] = useState<"bfs" | "dfs">("bfs");
@@ -15,36 +19,85 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (!url) return;
+        if (mode === "url" && !url) return;
+        if (mode === "html" && !rawHtml.trim()) return;
 
-        onSubmit({ url, selector, algorithm, limit, parallel });
+        onSubmit({
+            url: mode === "url" ? url : "",
+            html: mode === "html" ? rawHtml : "",
+            selector,
+            algorithm,
+            limit,
+            parallel,
+        });
     };
+
+    const inputClass =
+        "rounded-xl border border-[var(--line)] bg-[rgba(23,58,64,0.07)] text-[var(--sea-ink)] placeholder:text-[var(--sea-ink-soft)]/50 px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)] focus:bg-white/70";
 
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
-            <div className="flex flex-col gap-1.5">
-                <label
-                    htmlFor="url"
-                    className="text-sm font-medium text-[var(--sea-ink-soft)] w-max"
+
+            {/* Mode toggle: URL vs Raw HTML */}
+            <div className="flex rounded-xl overflow-hidden border border-[var(--line)] text-[13px] font-semibold">
+                <button
+                    type="button"
+                    onClick={() => setMode("url")}
+                    className={`flex-1 py-2 transition ${
+                        mode === "url"
+                            ? "bg-[var(--lagoon)] text-white"
+                            : "bg-white text-[var(--sea-ink-soft)] hover:bg-[var(--foam)]"
+                    }`}
                 >
-                    Website URL
-                </label>
-                <input
-                    id="url"
-                    type="url"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    placeholder="https://example.com"
-                    required
-                    className="rounded-xl border border-[var(--line)] bg-[rgba(23,58,64,0.07)] text-[var(--sea-ink)] placeholder:text-[var(--sea-ink-soft)]/50 px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)] focus:bg-white/70"
-                />
+                    URL
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setMode("html")}
+                    className={`flex-1 py-2 transition ${
+                        mode === "html"
+                            ? "bg-[var(--lagoon)] text-white"
+                            : "bg-white text-[var(--sea-ink-soft)] hover:bg-[var(--foam)]"
+                    }`}
+                >
+                    Raw HTML
+                </button>
             </div>
 
+            {mode === "url" ? (
+                <div className="flex flex-col gap-1.5">
+                    <label htmlFor="url" className="text-sm font-medium text-[var(--sea-ink-soft)] w-max">
+                        Website URL
+                    </label>
+                    <input
+                        id="url"
+                        type="url"
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        placeholder="https://example.com"
+                        required
+                        className={inputClass}
+                    />
+                </div>
+            ) : (
+                <div className="flex flex-col gap-1.5">
+                    <label htmlFor="rawHtml" className="text-sm font-medium text-[var(--sea-ink-soft)] w-max">
+                        Raw HTML
+                    </label>
+                    <textarea
+                        id="rawHtml"
+                        value={rawHtml}
+                        onChange={(e) => setRawHtml(e.target.value)}
+                        placeholder="<html><body>...</body></html>"
+                        required
+                        rows={7}
+                        className={`${inputClass} resize-y font-mono text-[11px] leading-relaxed`}
+                    />
+                </div>
+            )}
+
             <div className="flex flex-col gap-1.5">
-                <label
-                    htmlFor="selector"
-                    className="text-sm font-medium text-[var(--sea-ink-soft)] w-max"
-                >
+                <label htmlFor="selector" className="text-sm font-medium text-[var(--sea-ink-soft)] w-max">
                     CSS Selector (Optional)
                 </label>
                 <input
@@ -53,15 +106,12 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                     value={selector}
                     onChange={(e) => setSelector(e.target.value)}
                     placeholder="e.g. div.container"
-                    className="rounded-xl border border-[var(--line)] bg-[rgba(23,58,64,0.07)] text-[var(--sea-ink)] placeholder:text-[var(--sea-ink-soft)]/50 px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)] focus:bg-white/70"
+                    className={inputClass}
                 />
             </div>
 
             <div className="flex flex-col gap-1.5">
-                <label
-                    htmlFor="limit"
-                    className="text-sm font-medium text-[var(--sea-ink-soft)] w-max"
-                >
+                <label htmlFor="limit" className="text-sm font-medium text-[var(--sea-ink-soft)] w-max">
                     Top N Matches (0 = All)
                 </label>
                 <input
@@ -70,7 +120,7 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                     min="0"
                     value={limit}
                     onChange={(e) => setLimit(parseInt(e.target.value) || 0)}
-                    className="rounded-xl border border-[var(--line)] bg-[rgba(23,58,64,0.07)] text-[var(--sea-ink)] placeholder:text-[var(--sea-ink-soft)]/50 px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)] focus:bg-white/70"
+                    className={inputClass}
                 />
             </div>
 
@@ -88,9 +138,7 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                             onChange={() => setAlgorithm("bfs")}
                             className="text-[rgba(79,184,178,1)] focus:ring-[rgba(79,184,178,0.2)]"
                         />
-                        <span className="text-sm text-[var(--sea-ink)]">
-                            BFS
-                        </span>
+                        <span className="text-sm text-[var(--sea-ink)]">BFS</span>
                     </label>
                     <label className="flex items-center gap-2 cursor-pointer">
                         <input
@@ -101,9 +149,7 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                             onChange={() => setAlgorithm("dfs")}
                             className="text-[rgba(79,184,178,1)] focus:ring-[rgba(79,184,178,0.2)]"
                         />
-                        <span className="text-sm text-[var(--sea-ink)]">
-                            DFS
-                        </span>
+                        <span className="text-sm text-[var(--sea-ink)]">DFS</span>
                     </label>
                 </div>
             </div>
