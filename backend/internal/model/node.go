@@ -46,3 +46,21 @@ type SearchResponse struct {
 	TraversalLog    []TraversalStep  `json:"traversal_log"`
 	AnimationFrames []AnimationFrame `json:"animation_frames"`
 }
+
+// LCARequest is the body for POST /api/lca.
+// IDs are 1-indexed positions in the last traversal log.
+type LCARequest struct {
+	TraversalID1 int `json:"traversal_id_1" binding:"required,min=1"`
+	TraversalID2 int `json:"traversal_id_2" binding:"required,min=1"`
+}
+
+// LCAResponse is returned by POST /api/lca.
+type LCAResponse struct {
+	LCANodeID      int    `json:"lca_node_id"`
+	LCATag         string `json:"lca_tag"`
+	LCADepth       int    `json:"lca_depth"`
+	LCATraversalID int    `json:"lca_traversal_id"` // 1-indexed; -1 if not in log
+	Node1NodeID    int    `json:"node1_node_id"`
+	Node2NodeID    int    `json:"node2_node_id"`
+	PathIDs        []int  `json:"path_ids"` // DOM node IDs forming the path node1→LCA→node2
+}
