@@ -31,10 +31,22 @@ function App() {
             if (data.animation_frames && data.animation_frames.length > 0) {
                 setIsPlaying(true);
             }
-        } catch (err) {
-            setError(
-                err instanceof Error ? err : new Error("Unknown error occurred"),
-            );
+        } catch (err: any) {
+            const raw =
+                err?.response?.data?.error ||
+                err?.message ||
+                "Unknown error occurred";
+
+            const friendly =
+                raw.includes("no such host") || raw.includes("dial tcp")
+                    ? "URL tidak dapat dijangkau. Pastikan URL benar dan dapat diakses."
+                    : raw.includes("timeout")
+                    ? "Koneksi timeout. Coba lagi atau gunakan URL lain."
+                    : raw.includes("certificate")
+                    ? "URL memiliki masalah SSL/HTTPS."
+                    : raw;
+
+            setError(new Error(friendly));
         } finally {
             setIsLoading(false);
         }

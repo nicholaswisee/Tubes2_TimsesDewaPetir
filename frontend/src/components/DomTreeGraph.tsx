@@ -15,6 +15,8 @@ import "@xyflow/react/dist/style.css";
 import dagre from "@dagrejs/dagre";
 import type { TraversalStep } from "../api/types";
 
+const MAX_RENDER_NODES = 300;
+
 // Animation state lives in context — completely decoupled from node data.
 // This means the static nodes array NEVER changes after initial build,
 // so React Flow does zero per-frame diffing.
@@ -119,6 +121,50 @@ function DomNode({ data }: NodeProps<Node<DomNodeData>>) {
 // nodeTypes must be defined outside the component to avoid React Flow warnings
 const nodeTypes = { domNode: DomNode };
 
+// ─── Node filter ──────────────────────────────────────────────────────────────
+
+function filterLog(
+    log: TraversalStep[],
+    matchedNodeIds: Set<number>,
+): { filtered: TraversalStep[]; truncated: boolean } {
+    if (log.length <= MAX_RENDER_NODES) return { filtered: log, truncated: false };
+
+    const parentMap = new Map<number, number>();
+    for (const step of log) parentMap.set(step.node_id, step.parent_id);
+
+    const keep = new Set<number>();
+
+    // 1. matched nodes
+    for (const step of log) {
+        if (matchedNodeIds.has(step.node_id)) keep.add(step.node_id);
+    }
+
+    // 2. ancestors dari matched nodes
+    for (const nodeId of [...keep]) {
+        let cur = parentMap.get(nodeId);
+        while (cur !== undefined && cur !== -1) { keep.add(cur); cur = parentMap.get(cur); }
+    }
+
+    // 3. siblings langsung dari matched nodes
+    const matchedParents = new Set<number>();
+    for (const step of log) {
+        if (matchedNodeIds.has(step.node_id) && step.parent_id !== -1)
+            matchedParents.add(step.parent_id);
+    }
+    for (const step of log) {
+        if (matchedParents.has(step.parent_id)) keep.add(step.node_id);
+        if (keep.size >= MAX_RENDER_NODES) break;
+    }
+
+    // 4. sisa slot dari awal log
+    for (const step of log) {
+        keep.add(step.node_id);
+        if (keep.size >= MAX_RENDER_NODES) break;
+    }
+
+    return { filtered: log.filter((s) => keep.has(s.node_id)), truncated: true };
+}
+
 // ─── Layout builder ───────────────────────────────────────────────────────────
 
 // Runs once per search (memoized on [log]).
@@ -207,7 +253,11 @@ function Toolbar({ nodeCount }: { nodeCount: number }) {
 function FlowCanvas({ log, activeNodeId, matchedNodeIds, trackingIds }: DomTreeGraphProps) {
     // Static layout — built once, passed as-is to ReactFlow every render.
     // ReactFlow receives the same array reference → zero internal diffing per frame.
-    const { nodes, edges } = useMemo(() => buildLayout(log), [log]);
+    const { filtered, truncated } = useMemo(
+        () => filterLog(log, matchedNodeIds),
+        [log, matchedNodeIds],
+    );
+    const { nodes, edges } = useMemo(() => buildLayout(filtered), [filtered]);
 
     const animState = useMemo<AnimState>(
         () => ({
@@ -232,6 +282,11 @@ function FlowCanvas({ log, activeNodeId, matchedNodeIds, trackingIds }: DomTreeG
     return (
         <AnimContext.Provider value={animState}>
             <div style={{ width: "100%", height: "100%", position: "relative" }}>
+                {truncated && (
+                    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-amber-50 border border-amber-300 text-amber-800 text-[11px] font-semibold px-4 py-1.5 rounded-full shadow-sm pointer-events-none">
+                        Tree terlalu besar! Menampilkan {MAX_RENDER_NODES} node relevan dari {log.length} total
+                    </div>
+                )}
                 <ReactFlow
                     nodes={nodes}
                     edges={edges}
