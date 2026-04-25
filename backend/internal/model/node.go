@@ -13,10 +13,11 @@ type DOMNode struct {
 }
 
 type TraversalStep struct {
-	NodeID  int    `json:"node_id"`
-	Tag     string `json:"tag"`
-	Depth   int    `json:"depth"`
-	Matched bool   `json:"matched"` // match CSS selector
+	NodeID   int    `json:"node_id"`
+	ParentID int    `json:"parent_id"` // -1 for root
+	Tag      string `json:"tag"`
+	Depth    int    `json:"depth"`
+	Matched  bool   `json:"matched"` // match CSS selector
 }
 
 type SearchRequest struct {
@@ -38,11 +39,10 @@ type AnimationFrame struct {
 
 // SearchResponse is returned by POST /api/search.
 type SearchResponse struct {
-	Tree            *DOMNode         `json:"tree"` 
 	MaxDepth        int              `json:"max_depth"`
-	Matches         []*DOMNode       `json:"matches"` 
+	Matches         []*DOMNode       `json:"matches"`
 	VisitedCount    int              `json:"visited_count"`
 	DurationMs      int64            `json:"duration_ms"`
-	TraversalLog    []TraversalStep  `json:"traversal_log"`    
-	AnimationFrames []AnimationFrame `json:"animation_frames"` 
+	TraversalLog    []TraversalStep  `json:"traversal_log"`
+	AnimationFrames []AnimationFrame `json:"animation_frames"`
 }

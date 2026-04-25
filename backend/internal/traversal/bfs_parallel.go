@@ -40,14 +40,19 @@ func BFSParallel(root *model.DOMNode, match func(*model.DOMNode) bool, limit int
 			go func() {
 				defer wg.Done()
 				matched := match(node) // pure CSS matcher — goroutine-safe
+				parentID := -1
+				if node.Parent != nil {
+					parentID = node.Parent.ID
+				}
 				results[i] = bfsNodeResult{
 					node:    node,
 					matched: matched,
 					step: model.TraversalStep{
-						NodeID:  node.ID,
-						Tag:     node.Tag,
-						Depth:   node.Depth,
-						Matched: matched,
+						NodeID:   node.ID,
+						ParentID: parentID,
+						Tag:      node.Tag,
+						Depth:    node.Depth,
+						Matched:  matched,
 					},
 				}
 			}()

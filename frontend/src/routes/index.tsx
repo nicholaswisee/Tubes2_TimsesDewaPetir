@@ -100,6 +100,12 @@ function App() {
         matchedNodeIds = new Set(result.matches?.map((m) => m.id) || []);
     }
 
+    const displayFrame = result?.animation_frames?.length
+        ? currentFrame
+        : result?.traversal_log
+          ? result.traversal_log.length - 1
+          : 0;
+
     return (
         <main className="h-screen w-full flex overflow-hidden">
             {/* ── Left Sidebar: form + animation control ── */}
@@ -212,7 +218,8 @@ function App() {
                         </div>
                         <div className="flex-1 w-full h-full custom-scrollbar">
                             <DomTreeGraph
-                                tree={result.tree}
+                                log={result.traversal_log}
+                                currentFrame={displayFrame}
                                 matchedNodeIds={matchedNodeIds}
                                 activeNodeId={activeNodeId}
                                 trackingIds={trackingIds}

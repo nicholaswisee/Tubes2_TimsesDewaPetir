@@ -114,7 +114,6 @@ func Search(c *gin.Context) {
 	}()
 
 	c.JSON(http.StatusOK, model.SearchResponse{
-		Tree:            tree,
 		MaxDepth:        maxDepth,
 		Matches:         matches,
 		VisitedCount:    visitedCount,

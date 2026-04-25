@@ -1,326 +1,271 @@
-import { useCallback, useRef, useState } from "react";
-import Tree from "react-d3-tree";
-import type { RawNodeDatum, CustomNodeElementProps } from "react-d3-tree";
-import type { DOMNode } from "../api/types";
+import { useMemo, useCallback, createContext, useContext } from "react";
+import {
+    ReactFlow,
+    Background,
+    MiniMap,
+    Handle,
+    Position,
+    useReactFlow,
+    ReactFlowProvider,
+    type Node,
+    type Edge,
+    type NodeProps,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+import dagre from "@dagrejs/dagre";
+import type { TraversalStep } from "../api/types";
+
+// Animation state lives in context — completely decoupled from node data.
+// This means the static nodes array NEVER changes after initial build,
+// so React Flow does zero per-frame diffing.
+interface AnimState {
+    activeNodeId?: number;
+    matchedNodeIds: Set<number>;
+    trackingIds: Set<number>;
+}
+
+const AnimContext = createContext<AnimState>({
+    activeNodeId: undefined,
+    matchedNodeIds: new Set(),
+    trackingIds: new Set(),
+});
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface DomTreeGraphProps {
-    tree: DOMNode;
-    matchedNodeIds: Set<number>;
+    log: TraversalStep[];
     activeNodeId?: number;
-    trackingIds?: Set<number>; // Stack or Queue
+    matchedNodeIds: Set<number>;
+    trackingIds?: Set<number>;
 }
 
-interface TooltipState {
-    visible: boolean;
-    x: number;
-    y: number;
+interface DomNodeData extends Record<string, unknown> {
     tag: string;
-    id: string;
-    cls: string;
-    text: string;
-    isMatched: boolean;
-    isActive: boolean;
-    isTracked: boolean;
-    nodeId: string;
+    nodeId: number;
+    depth: number;
 }
 
-function convertToD3Tree(
-    node: DOMNode,
-    matched: Set<number>,
-    activeId?: number,
-    tracked?: Set<number>,
-): RawNodeDatum {
-    const textPreview =
-        node.tag === "#text"
-            ? node.text && node.text.length > 60
-                ? node.text.substring(0, 60) + "..."
-                : node.text || ""
-            : "";
+const NODE_W = 140;
+const NODE_H = 36;
 
-    const isMatched = matched.has(node.id);
-    const isActive = activeId === node.id;
-    const isTracked = tracked?.has(node.id) ?? false;
+// ─── Custom Node ──────────────────────────────────────────────────────────────
 
-    const attrs: Record<string, string> = {
-        _id: node.id.toString(),
-        _matched: isMatched.toString(),
-        _active: isActive.toString(),
-        _tracked: isTracked.toString(),
-        _text: textPreview,
-        _rawId: node.attributes?.id || "",
-        _rawClass: node.attributes?.class || "",
-    };
+function DomNode({ data }: NodeProps<Node<DomNodeData>>) {
+    // Reads animation state from context — not from node.data.
+    // Re-renders only when context changes AND this node is visible in viewport.
+    const { activeNodeId, matchedNodeIds, trackingIds } = useContext(AnimContext);
+    const { tag, nodeId, depth } = data;
 
-    if (node.tag !== "#text" && node.attributes) {
-        if (node.attributes.id) attrs["id"] = "#" + node.attributes.id;
-        if (node.attributes.class)
-            attrs["class"] = "." + node.attributes.class.split(" ")[0];
+    const isActive = nodeId === activeNodeId;
+    const isMatched = matchedNodeIds.has(nodeId);
+    const isTracked = trackingIds.has(nodeId);
+
+    let bg = "#ffffff";
+    let border = "#4fb8b2";
+    let borderWidth = 1.5;
+    let textColor = "#173a40";
+    let shadow = "0 1px 3px rgba(0,0,0,0.08)";
+
+    if (isActive) {
+        bg = "#ffedd5";
+        border = "#ea580c";
+        borderWidth = 3;
+        textColor = "#9a3412";
+        shadow = "0 0 0 3px rgba(234,88,12,0.2)";
+    } else if (isMatched) {
+        bg = "#4fb8b2";
+        border = "#173a40";
+        borderWidth = 3;
+        textColor = "#ffffff";
+        shadow = "0 0 0 3px rgba(79,184,178,0.25)";
+    } else if (isTracked) {
+        bg = "#f0f9ff";
+        border = "#38bdf8";
     }
 
-    return {
-        name: node.tag,
-        attributes: attrs,
-        children:
-            node.children && node.children.length > 0
-                ? node.children.map((c) =>
-                      convertToD3Tree(c, matched, activeId, tracked),
-                  )
-                : undefined,
-    };
-}
-
-function makeNodeRenderer(
-    setTooltip: React.Dispatch<React.SetStateAction<TooltipState>>,
-    containerRef: React.RefObject<HTMLDivElement | null>,
-) {
-    return function CustomNode({
-        nodeDatum,
-        toggleNode,
-    }: CustomNodeElementProps) {
-        const isMatched = nodeDatum.attributes?._matched === "true";
-        const isActive = nodeDatum.attributes?._active === "true";
-        const isTracked = nodeDatum.attributes?._tracked === "true";
-
-        const textPreview = (nodeDatum.attributes?._text as string) || "";
-        const isTextNode = nodeDatum.name === "#text";
-
-        let strokeColor = "#4fb8b2";
-        let fillColor = "#ffffff";
-        let strokeWidth = 2;
-
-        if (isActive) {
-            strokeColor = "#ea580c"; // Orange border
-            fillColor = "#ffedd5"; // Pale orange fill
-            strokeWidth = 4;
-        } else if (isMatched) {
-            strokeColor = "#173a40"; // Dark border
-            fillColor = "#4fb8b2"; // Teal fill
-            strokeWidth = 4;
-        } else if (isTracked) {
-            strokeColor = "#38bdf8"; // Light blue outline
-            fillColor = "#f0f9ff";
-            strokeWidth = 2;
-        }
-
-        const handleMouseEnter = (e: React.MouseEvent) => {
-            const containerRect = containerRef.current?.getBoundingClientRect();
-            const nodeRect = (
-                e.currentTarget as SVGGElement
-            ).getBoundingClientRect();
-            if (!containerRect || !nodeRect) return;
-
-            setTooltip({
-                visible: true,
-                x:
-                    nodeRect.left -
-                    containerRect.left +
-                    nodeRect.width / 2 -
-                    100, // Roughly center the tooltip horizontally relative to the node
-                y: nodeRect.top - containerRect.top + nodeRect.height + 15, // Anchor slightly below the node
-                tag: nodeDatum.name,
-                id: (nodeDatum.attributes?._rawId as string) || "",
-                cls: (nodeDatum.attributes?._rawClass as string) || "",
-                text: textPreview,
-                isMatched,
-                isActive,
-                isTracked,
-                nodeId: (nodeDatum.attributes?._id as string) || "",
-            });
-        };
-
-        const handleMouseLeave = () => {
-            setTooltip((prev) => ({ ...prev, visible: false }));
-        };
-
-        return (
-            <g onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-                <circle
-                    r={15}
-                    onClick={toggleNode}
-                    fill={fillColor}
-                    stroke={strokeColor}
-                    strokeWidth={strokeWidth}
-                    style={{ cursor: "pointer", transition: "all 0.2s ease" }}
-                />
-                <text
-                    fill="#000000"
-                    strokeWidth="0"
-                    x="20"
-                    y="-5"
-                    style={{
-                        fontSize: "13px",
-                        fontFamily: "monospace",
-                        fontWeight: isMatched || isActive ? "bold" : "normal",
-                        userSelect: "none",
-                    }}
-                    onClick={toggleNode}
-                >
-                    {isTextNode ? `"${textPreview}"` : `<${nodeDatum.name}>`}
-                </text>
-                {!isTextNode && (
-                    <text
-                        fill="#444444"
-                        x="20"
-                        y="10"
-                        style={{
-                            fontSize: "10px",
-                            fontFamily: "monospace",
-                            userSelect: "none",
-                        }}
-                    >
-                        {nodeDatum.attributes?.id} {nodeDatum.attributes?.class}
-                    </text>
-                )}
-            </g>
-        );
-    };
-}
-
-export function DomTreeGraph({
-    tree,
-    matchedNodeIds,
-    activeNodeId,
-    trackingIds,
-}: DomTreeGraphProps) {
-    const [zoom] = useState(0.8);
-    const containerRef = useRef<HTMLDivElement | null>(null);
-
-    const [tooltip, setTooltip] = useState<TooltipState>({
-        visible: false,
-        x: 0,
-        y: 0,
-        tag: "",
-        id: "",
-        cls: "",
-        text: "",
-        isMatched: false,
-        isActive: false,
-        isTracked: false,
-        nodeId: "",
-    });
-
-    // Recompute layout whenever the animation props change
-    const d3Data = convertToD3Tree(
-        tree,
-        matchedNodeIds,
-        activeNodeId,
-        trackingIds,
-    );
-
-    const nodeRenderer = useCallback(
-        makeNodeRenderer(setTooltip, containerRef),
-        [],
-    );
-
-    const setContainerRef = useCallback((el: HTMLDivElement | null) => {
-        (
-            containerRef as React.MutableRefObject<HTMLDivElement | null>
-        ).current = el;
-    }, []);
+    const label = tag === "#text" ? "#text" : `<${tag}>`;
 
     return (
-        <div
-            ref={setContainerRef}
-            style={{
-                width: "100%",
-                height: "100%",
-                backgroundColor: "transparent",
-                position: "relative",
-            }}
-        >
-            <Tree
-                data={d3Data}
-                renderCustomNodeElement={nodeRenderer}
-                orientation="horizontal"
-                pathFunc="step"
-                zoom={zoom}
-                translate={{ x: 50, y: 300 }}
-                nodeSize={{ x: 200, y: 70 }}
-                separation={{ siblings: 1.2, nonSiblings: 1.5 }}
-                transitionDuration={200}
-            />
+        <>
+            <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+            <div
+                style={{
+                    background: bg,
+                    border: `${borderWidth}px solid ${border}`,
+                    color: textColor,
+                    borderRadius: 8,
+                    padding: "4px 10px",
+                    fontSize: 12,
+                    fontFamily: "monospace",
+                    fontWeight: isActive || isMatched ? 700 : 400,
+                    width: NODE_W,
+                    height: NODE_H,
+                    display: "flex",
+                    alignItems: "center",
+                    transition: "background 0.15s, border-color 0.15s, box-shadow 0.15s",
+                    overflow: "hidden",
+                    whiteSpace: "nowrap",
+                    boxShadow: shadow,
+                }}
+                title={`<${tag}> · Node #${nodeId} · depth ${depth}`}
+            >
+                {label}
+            </div>
+            <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+        </>
+    );
+}
 
-            {/* Hover Tooltip */}
-            {tooltip.visible && (
-                <div
-                    style={{
-                        position: "absolute",
-                        top: tooltip.y + 16,
-                        left: tooltip.x + 16,
-                        pointerEvents: "none",
-                        zIndex: 9999,
-                        transform:
-                            tooltip.x > 600 ? "translateX(-110%)" : undefined,
-                    }}
-                    className="bg-[#0f1c1e] text-white rounded-xl px-4 py-3 text-xs font-mono shadow-2xl border border-[var(--lagoon)]/30 min-w-[180px] max-w-[280px]"
-                >
-                    <div className="flex items-center gap-2 mb-2 flex-wrap">
-                        <span
-                            className={`px-2 py-0.5 rounded-full text-[11px] font-bold tracking-wide ${
-                                tooltip.tag === "#text"
-                                    ? "bg-amber-500/20 text-amber-300"
-                                    : tooltip.isMatched
-                                      ? "bg-[var(--lagoon)]/30 text-[#7ee8e4]"
-                                      : "bg-[var(--lagoon)]/15 text-[#4fb8b2]"
-                            }`}
-                        >
-                            {tooltip.tag === "#text"
-                                ? "#text"
-                                : `<${tooltip.tag}>`}
-                        </span>
-                        {tooltip.isActive && (
-                            <span className="text-[10px] text-orange-200 font-semibold bg-orange-500/40 px-1.5 py-0.5 rounded-full border border-orange-400">
-                                Evaluating
-                            </span>
-                        )}
-                        {tooltip.isMatched && (
-                            <span className="text-[10px] text-amber-300 font-semibold bg-amber-500/15 px-1.5 py-0.5 rounded-full">
-                                Matched
-                            </span>
-                        )}
-                        {tooltip.isTracked &&
-                            !tooltip.isMatched &&
-                            !tooltip.isActive && (
-                                <span className="text-[10px] text-blue-300 font-semibold bg-blue-500/15 px-1.5 py-0.5 rounded-full">
-                                    Target Queue/Stack
-                                </span>
-                            )}
-                    </div>
+// nodeTypes must be defined outside the component to avoid React Flow warnings
+const nodeTypes = { domNode: DomNode };
 
-                    <div className="text-[var(--sea-ink-soft)] text-[10px] mb-1.5">
-                        Node #{tooltip.nodeId}
-                    </div>
+// ─── Layout builder ───────────────────────────────────────────────────────────
 
-                    {tooltip.id && (
-                        <div className="flex gap-1.5 items-start mb-1">
-                            <span className="text-[#4fb8b2] shrink-0">#id</span>
-                            <span className="text-slate-300 break-all">
-                                {tooltip.id}
-                            </span>
-                        </div>
-                    )}
-                    {tooltip.cls && (
-                        <div className="flex gap-1.5 items-start mb-1">
-                            <span className="text-[#a8d8b9] shrink-0">
-                                .cls
-                            </span>
-                            <span className="text-slate-300 break-all">
-                                {tooltip.cls}
-                            </span>
-                        </div>
-                    )}
-                    {tooltip.text && (
-                        <div className="mt-2 pt-2 border-t border-white/10">
-                            <span className="text-amber-400/70 text-[10px] block mb-0.5">
-                                text content
-                            </span>
-                            <span className="text-slate-400 italic break-all">
-                                &ldquo;{tooltip.text}&rdquo;
-                            </span>
-                        </div>
-                    )}
-                </div>
-            )}
+// Runs once per search (memoized on [log]).
+// Produces static nodes + edges — never updated again during animation.
+function buildLayout(log: TraversalStep[]): { nodes: Node<DomNodeData>[]; edges: Edge[] } {
+    if (log.length === 0) return { nodes: [], edges: [] };
+
+    const g = new dagre.graphlib.Graph();
+    g.setGraph({ rankdir: "LR", nodesep: 20, ranksep: 60 });
+    g.setDefaultEdgeLabel(() => ({}));
+
+    const rawNodes: Node<DomNodeData>[] = [];
+    const edges: Edge[] = [];
+
+    for (const step of log) {
+        const id = String(step.node_id);
+        g.setNode(id, { width: NODE_W, height: NODE_H });
+        rawNodes.push({
+            id,
+            type: "domNode",
+            position: { x: 0, y: 0 },
+            data: { tag: step.tag, nodeId: step.node_id, depth: step.depth },
+        });
+
+        if (step.parent_id !== -1) {
+            const src = String(step.parent_id);
+            g.setEdge(src, id);
+            edges.push({
+                id: `e${src}-${id}`,
+                source: src,
+                target: id,
+                type: "smoothstep",
+                style: { stroke: "#cbd5e1", strokeWidth: 1.5 },
+            });
+        }
+    }
+
+    dagre.layout(g);
+
+    return {
+        nodes: rawNodes.map((node) => {
+            const pos = g.node(node.id);
+            return { ...node, position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 } };
+        }),
+        edges,
+    };
+}
+
+// ─── Toolbar ──────────────────────────────────────────────────────────────────
+
+function Toolbar({ nodeCount }: { nodeCount: number }) {
+    const { zoomIn, zoomOut, fitView, zoomTo } = useReactFlow();
+
+    const btn =
+        "w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-[#e2e8f0] text-[#173a40] hover:bg-[#f0fdfc] hover:border-[#4fb8b2] transition text-sm font-bold shadow-sm active:scale-95 cursor-pointer";
+
+    return (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm border border-[#e2e8f0] rounded-xl px-2 py-1.5 shadow-lg select-none">
+            <button className={btn} onClick={() => zoomIn({ duration: 200 })} title="Zoom in">+</button>
+            <button className={btn} onClick={() => zoomOut({ duration: 200 })} title="Zoom out">−</button>
+            <button
+                onClick={() => zoomTo(1, { duration: 300 })}
+                title="Reset zoom to 100%"
+                className="h-8 px-2.5 flex items-center justify-center rounded-lg bg-white border border-[#e2e8f0] text-[#173a40] hover:bg-[#f0fdfc] hover:border-[#4fb8b2] transition text-[10px] font-semibold shadow-sm active:scale-95 cursor-pointer"
+            >
+                100%
+            </button>
+            <div className="w-px h-5 bg-[#e2e8f0] mx-0.5" />
+            <button
+                onClick={() => fitView({ duration: 400, padding: 0.15 })}
+                title="Fit entire tree to view"
+                className="h-8 px-3 flex items-center justify-center rounded-lg bg-white border border-[#e2e8f0] text-[#173a40] hover:bg-[#f0fdfc] hover:border-[#4fb8b2] transition text-[11px] font-semibold shadow-sm active:scale-95 cursor-pointer"
+            >
+                Fit Tree
+            </button>
+            <div className="w-px h-5 bg-[#e2e8f0] mx-0.5" />
+            <span className="text-[10px] font-mono text-[#64748b] px-1 tabular-nums">
+                {nodeCount} nodes
+            </span>
         </div>
+    );
+}
+
+// ─── Inner canvas (needs ReactFlowProvider as ancestor) ──────────────────────
+
+function FlowCanvas({ log, activeNodeId, matchedNodeIds, trackingIds }: DomTreeGraphProps) {
+    // Static layout — built once, passed as-is to ReactFlow every render.
+    // ReactFlow receives the same array reference → zero internal diffing per frame.
+    const { nodes, edges } = useMemo(() => buildLayout(log), [log]);
+
+    const animState = useMemo<AnimState>(
+        () => ({
+            activeNodeId,
+            matchedNodeIds,
+            trackingIds: trackingIds ?? new Set(),
+        }),
+        [activeNodeId, matchedNodeIds, trackingIds],
+    );
+
+    const nodeColor = useCallback(
+        (node: Node) => {
+            const id = (node.data as DomNodeData).nodeId;
+            if (id === activeNodeId) return "#ea580c";
+            if (matchedNodeIds.has(id)) return "#4fb8b2";
+            if (trackingIds?.has(id)) return "#38bdf8";
+            return "#e2e8f0";
+        },
+        [activeNodeId, matchedNodeIds, trackingIds],
+    );
+
+    return (
+        <AnimContext.Provider value={animState}>
+            <div style={{ width: "100%", height: "100%", position: "relative" }}>
+                <ReactFlow
+                    nodes={nodes}
+                    edges={edges}
+                    nodeTypes={nodeTypes}
+                    fitView
+                    fitViewOptions={{ padding: 0.15 }}
+                    minZoom={0.02}
+                    maxZoom={2}
+                    nodesDraggable={false}
+                    nodesConnectable={false}
+                    elementsSelectable={false}
+                    proOptions={{ hideAttribution: true }}
+                >
+                    <Background color="#f1f5f9" gap={24} size={1.5} />
+                    <MiniMap
+                        nodeColor={nodeColor}
+                        maskColor="rgba(241,245,249,0.7)"
+                        style={{ border: "1px solid #e2e8f0", borderRadius: 10, bottom: 60 }}
+                        pannable
+                        zoomable
+                    />
+                </ReactFlow>
+                <Toolbar nodeCount={log.length} />
+            </div>
+        </AnimContext.Provider>
+    );
+}
+
+// ─── Public export ────────────────────────────────────────────────────────────
+
+export function DomTreeGraph(props: DomTreeGraphProps) {
+    return (
+        <ReactFlowProvider>
+            <FlowCanvas {...props} />
+        </ReactFlowProvider>
     );
 }

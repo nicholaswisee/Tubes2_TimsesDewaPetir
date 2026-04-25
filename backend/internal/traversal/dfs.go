@@ -25,11 +25,16 @@ func DFS(root *model.DOMNode, match func(*model.DOMNode) bool, limit int) ([]*mo
 		visited++
 
 		matched := match(node)
+		parentID := -1
+		if node.Parent != nil {
+			parentID = node.Parent.ID
+		}
 		log = append(log, model.TraversalStep{
-			NodeID:  node.ID,
-			Tag:     node.Tag,
-			Depth:   node.Depth,
-			Matched: matched,
+			NodeID:   node.ID,
+			ParentID: parentID,
+			Tag:      node.Tag,
+			Depth:    node.Depth,
+			Matched:  matched,
 		})
 
 		if matched {

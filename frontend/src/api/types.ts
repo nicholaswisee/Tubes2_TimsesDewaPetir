@@ -9,6 +9,7 @@ export interface DOMNode {
 
 export interface TraversalStep {
   node_id: number;
+  parent_id: number; // -1 for root
   tag: string;
   depth: number;
   matched: boolean;
@@ -32,7 +33,6 @@ export interface AnimationFrame {
 }
 
 export interface SearchResponse {
-  tree: DOMNode;
   max_depth: number;
   matches: DOMNode[];
   visited_count: number;

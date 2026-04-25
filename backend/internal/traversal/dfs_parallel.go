@@ -26,11 +26,16 @@ func sequentialDFSSubtree(root *model.DOMNode, match func(*model.DOMNode) bool) 
 		res.visited++
 		matched := match(node)
 
+		parentID := -1
+		if node.Parent != nil {
+			parentID = node.Parent.ID
+		}
 		res.log = append(res.log, model.TraversalStep{
-			NodeID:  node.ID,
-			Tag:     node.Tag,
-			Depth:   node.Depth,
-			Matched: matched,
+			NodeID:   node.ID,
+			ParentID: parentID,
+			Tag:      node.Tag,
+			Depth:    node.Depth,
+			Matched:  matched,
 		})
 
 		if matched {
@@ -88,10 +93,11 @@ func DFSParallel(root *model.DOMNode, match func(*model.DOMNode) bool, limit int
 		rootMatchedIDs = append(rootMatchedIDs, root.ID)
 	}
 	allLog = append(allLog, model.TraversalStep{
-		NodeID:  root.ID,
-		Tag:     root.Tag,
-		Depth:   root.Depth,
-		Matched: rootMatched,
+		NodeID:   root.ID,
+		ParentID: -1,
+		Tag:      root.Tag,
+		Depth:    root.Depth,
+		Matched:  rootMatched,
 	})
 
 	rootStackIDs := make([]int, len(root.Children))

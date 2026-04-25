@@ -131,7 +131,7 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
 
             <button
                 type="submit"
-                disabled={isLoading || !url}
+                disabled={isLoading}
                 className="mt-2 w-full rounded-xl bg-[var(--lagoon-deep)] px-5 py-3 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 {isLoading ? "Analyzing..." : "Fetch DOM Tree"}
