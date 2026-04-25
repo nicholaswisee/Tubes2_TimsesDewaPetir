@@ -40,3 +40,18 @@ export interface SearchResponse {
   traversal_log: TraversalStep[];
   animation_frames: AnimationFrame[];
 }
+
+export interface LCARequest {
+  traversal_id_1: number; // 1-indexed position in traversal log
+  traversal_id_2: number;
+}
+
+export interface LCAResponse {
+  lca_node_id: number;
+  lca_tag: string;
+  lca_depth: number;
+  lca_traversal_id: number; // 1-indexed; -1 if not found in log
+  node1_node_id: number;
+  node2_node_id: number;
+  path_ids: number[]; // DOM node IDs on the path node1 → LCA → node2
+}

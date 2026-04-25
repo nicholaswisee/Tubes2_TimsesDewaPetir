@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { SearchForm } from "../components/SearchForm";
-import { DomTreeGraph } from "../components/DomTreeGraph";
-import { searchDOM, downloadLatestLog } from "../api/client";
-import type { SearchResponse, SearchRequest } from "../api/types";
+import { DomTreeGraph, type LCAHighlight } from "../components/DomTreeGraph";
+import { searchDOM, downloadLatestLog, findLCA, getLatestHTML } from "../api/client";
+import type { SearchResponse, SearchRequest, LCAResponse } from "../api/types";
 
 export const Route = createFileRoute("/")({ component: App });
 
@@ -18,12 +18,28 @@ function App() {
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
     const [speed, setSpeed] = useState<number>(400);
 
+    // LCA state
+    const [lcaId1, setLcaId1] = useState("");
+    const [lcaId2, setLcaId2] = useState("");
+    const [lcaResult, setLcaResult] = useState<LCAResponse | null>(null);
+    const [lcaLoading, setLcaLoading] = useState(false);
+    const [lcaError, setLcaError] = useState<string | null>(null);
+
+    // HTML viewer state
+    const [showHtmlViewer, setShowHtmlViewer] = useState(false);
+    const [htmlContent, setHtmlContent] = useState("");
+    const [htmlLoading, setHtmlLoading] = useState(false);
+
     // Ref for auto-scrolling traversal log to active step
     const activeLogRowRef = useRef<HTMLDivElement>(null);
 
     const handleSearch = async (request: SearchRequest) => {
         setIsLoading(true);
         setError(null);
+        setLcaResult(null);
+        setLcaError(null);
+        setLcaId1("");
+        setLcaId2("");
         try {
             const data = await searchDOM(request);
             setResult(data);
@@ -57,11 +73,54 @@ function App() {
         try {
             await downloadLatestLog();
         } catch {
-            // silently fail — backend may not have a log yet
+            // silently fail
         } finally {
             setIsDownloading(false);
         }
     };
+
+    const handleLCA = async () => {
+        const id1 = parseInt(lcaId1);
+        const id2 = parseInt(lcaId2);
+        if (!result || isNaN(id1) || isNaN(id2)) return;
+
+        const maxStep = result.traversal_log.length;
+        if (id1 < 1 || id1 > maxStep || id2 < 1 || id2 > maxStep) {
+            setLcaError(`Step IDs must be between 1 and ${maxStep}`);
+            return;
+        }
+
+        setLcaLoading(true);
+        setLcaError(null);
+        setLcaResult(null);
+        try {
+            const res = await findLCA({ traversal_id_1: id1, traversal_id_2: id2 });
+            setLcaResult(res);
+        } catch (err) {
+            setLcaError(err instanceof Error ? err.message : "LCA computation failed");
+        } finally {
+            setLcaLoading(false);
+        }
+    };
+
+    const handleViewHtml = async () => {
+        setShowHtmlViewer(true);
+        if (htmlContent) return; // already loaded for this search
+        setHtmlLoading(true);
+        try {
+            const html = await getLatestHTML();
+            setHtmlContent(html);
+        } catch {
+            setHtmlContent("Failed to load HTML.");
+        } finally {
+            setHtmlLoading(false);
+        }
+    };
+
+    // Reset HTML content when a new search is performed
+    useEffect(() => {
+        setHtmlContent("");
+    }, [result]);
 
     // Animation Loop
     useEffect(() => {
@@ -87,10 +146,7 @@ function App() {
     // Auto-scroll traversal log to the active row
     useEffect(() => {
         if (activeLogRowRef.current) {
-            activeLogRowRef.current.scrollIntoView({
-                block: "nearest",
-                behavior: "smooth",
-            });
+            activeLogRowRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
         }
     }, [currentFrame]);
 
@@ -104,10 +160,7 @@ function App() {
             result.animation_frames[result.animation_frames.length - 1];
         activeNodeId = frame.active_id;
         matchedNodeIds = new Set(frame.matched_ids || []);
-        trackingIds = new Set([
-            ...(frame.queue_ids || []),
-            ...(frame.stack_ids || []),
-        ]);
+        trackingIds = new Set([...(frame.queue_ids || []), ...(frame.stack_ids || [])]);
     } else if (result) {
         matchedNodeIds = new Set(result.matches?.map((m) => m.id) || []);
     }
@@ -118,22 +171,41 @@ function App() {
           ? result.traversal_log.length - 1
           : 0;
 
+    const lcaHighlight: LCAHighlight | undefined = lcaResult
+        ? {
+              node1Id: lcaResult.node1_node_id,
+              node2Id: lcaResult.node2_node_id,
+              lcaId: lcaResult.lca_node_id,
+              pathIds: new Set(lcaResult.path_ids),
+          }
+        : undefined;
+
+    const maxStep = result?.traversal_log?.length ?? 0;
+
     return (
         <main className="h-screen w-full flex overflow-hidden">
-            {/* ── Left Sidebar: form + animation control ── */}
+
+            {/* ── Left Sidebar ── */}
             <aside className="w-80 sm:w-[22rem] flex-shrink-0 flex flex-col p-6 overflow-y-auto border-r border-[var(--line)] bg-[var(--surface-strong)] z-20 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.15)] hidden sm:flex">
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold tracking-tight text-[var(--sea-ink)] mb-1">
                         DOM Vector
                     </h1>
                     <p className="text-[13px] text-[var(--sea-ink-soft)] leading-snug">
-                        Input a URL and an optional CSS selector to fetch and
-                        visualize its graphical structure.
+                        Input a URL or raw HTML and a CSS selector to fetch and visualize its DOM structure.
                     </p>
                 </div>
 
                 <div className="mb-6 border-b border-[var(--line)] pb-6">
                     <SearchForm onSubmit={handleSearch} isLoading={isLoading} />
+                    {result && (
+                        <button
+                            onClick={handleViewHtml}
+                            className="mt-3 text-[11px] font-medium text-[var(--lagoon-deep)] hover:underline"
+                        >
+                            View fetched HTML →
+                        </button>
+                    )}
                 </div>
 
                 {/* Animation Controller */}
@@ -153,10 +225,7 @@ function App() {
                                 {isPlaying ? "Pause" : "Play Process"}
                             </button>
                             <button
-                                onClick={() => {
-                                    setCurrentFrame(0);
-                                    setIsPlaying(true);
-                                }}
+                                onClick={() => { setCurrentFrame(0); setIsPlaying(true); }}
                                 className="px-4 bg-white border border-[var(--line)] text-[var(--sea-ink)] text-sm font-semibold py-1.5 rounded-[0.7rem] hover:bg-[#f1f5f9] transition transform active:scale-95 shadow-sm"
                             >
                                 Restart
@@ -171,10 +240,7 @@ function App() {
                                 min="0"
                                 max={result.animation_frames.length - 1}
                                 value={currentFrame}
-                                onChange={(e) => {
-                                    setCurrentFrame(parseInt(e.target.value));
-                                    setIsPlaying(false);
-                                }}
+                                onChange={(e) => { setCurrentFrame(parseInt(e.target.value)); setIsPlaying(false); }}
                                 className="flex-1 accent-[var(--lagoon-deep)] h-2 cursor-pointer"
                             />
                             <span className="text-[11px] font-mono text-[var(--sea-ink-soft)] w-7 text-right">
@@ -182,9 +248,7 @@ function App() {
                             </span>
                         </div>
                         <div className="flex justify-between items-center mt-3 px-1">
-                            <span className="text-[12px] font-semibold text-[var(--sea-ink-soft)]">
-                                Delay
-                            </span>
+                            <span className="text-[12px] font-semibold text-[var(--sea-ink-soft)]">Delay</span>
                             <select
                                 className="text-xs border border-[var(--line)] rounded-md font-semibold px-2 py-1 bg-white text-[var(--sea-ink)] outline-none focus:ring-1 focus:ring-[var(--lagoon)]"
                                 value={speed}
@@ -199,11 +263,95 @@ function App() {
                     </div>
                 )}
 
+                {/* LCA Finder */}
+                {result?.traversal_log && result.traversal_log.length > 0 && (
+                    <div className="mb-6 border-b border-[var(--line)] pb-6">
+                        <h3 className="text-[14px] font-semibold text-[var(--sea-ink)] mb-1">
+                            LCA Finder
+                        </h3>
+                        <p className="text-[11px] text-[var(--sea-ink-soft)] mb-3 leading-snug">
+                            Enter two step numbers (shown as #N on each node) to find their Lowest Common Ancestor using Binary Lifting.
+                        </p>
+                        <div className="flex gap-2 mb-3">
+                            <div className="flex-1">
+                                <label className="text-[10px] font-semibold text-[var(--sea-ink-soft)] uppercase tracking-wide">
+                                    Node A (step #)
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max={maxStep}
+                                    value={lcaId1}
+                                    onChange={(e) => { setLcaId1(e.target.value); setLcaError(null); }}
+                                    className="w-full mt-1 rounded-lg border border-[var(--line)] bg-white text-[var(--sea-ink)] px-3 py-1.5 text-sm font-mono outline-none focus:ring-1 focus:ring-violet-400"
+                                    placeholder={`1–${maxStep}`}
+                                />
+                            </div>
+                            <div className="flex-1">
+                                <label className="text-[10px] font-semibold text-[var(--sea-ink-soft)] uppercase tracking-wide">
+                                    Node B (step #)
+                                </label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max={maxStep}
+                                    value={lcaId2}
+                                    onChange={(e) => { setLcaId2(e.target.value); setLcaError(null); }}
+                                    className="w-full mt-1 rounded-lg border border-[var(--line)] bg-white text-[var(--sea-ink)] px-3 py-1.5 text-sm font-mono outline-none focus:ring-1 focus:ring-violet-400"
+                                    placeholder={`1–${maxStep}`}
+                                />
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleLCA}
+                            disabled={lcaLoading || !lcaId1 || !lcaId2}
+                            className="w-full bg-violet-600 text-white text-sm font-semibold py-1.5 rounded-[0.7rem] hover:bg-violet-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {lcaLoading ? "Computing…" : "Find LCA"}
+                        </button>
+                        {lcaError && (
+                            <p className="mt-2 text-[11px] text-red-500">{lcaError}</p>
+                        )}
+                        {lcaResult && (
+                            <div className="mt-3 bg-violet-50 border border-violet-200 rounded-xl p-3 text-[12px] space-y-1">
+                                <div className="font-bold text-violet-800 mb-1">LCA Found</div>
+                                <div className="flex justify-between text-violet-700">
+                                    <span>Element</span>
+                                    <span className="font-mono font-bold">&lt;{lcaResult.lca_tag}&gt;</span>
+                                </div>
+                                <div className="flex justify-between text-violet-700">
+                                    <span>Depth</span>
+                                    <span className="font-mono">{lcaResult.lca_depth}</span>
+                                </div>
+                                {lcaResult.lca_traversal_id !== -1 && (
+                                    <div className="flex justify-between text-violet-700">
+                                        <span>Step #</span>
+                                        <span className="font-mono font-bold">#{lcaResult.lca_traversal_id}</span>
+                                    </div>
+                                )}
+                                <div className="flex justify-between text-violet-500 text-[10px] pt-1 border-t border-violet-100">
+                                    <span>Path length</span>
+                                    <span className="font-mono">{lcaResult.path_ids.length} nodes</span>
+                                </div>
+                                <p className="text-[10px] text-violet-400 mt-1">
+                                    Highlighted in purple on the tree. Input nodes in green, path in lavender.
+                                </p>
+                            </div>
+                        )}
+                        {lcaResult && (
+                            <button
+                                onClick={() => { setLcaResult(null); setLcaId1(""); setLcaId2(""); }}
+                                className="mt-2 text-[11px] text-violet-400 hover:text-violet-600"
+                            >
+                                Clear highlight
+                            </button>
+                        )}
+                    </div>
+                )}
+
                 {error && (
                     <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-700 text-sm">
-                        <p>
-                            <strong>Error:</strong>
-                        </p>
+                        <p><strong>Error:</strong></p>
                         <p>{error.message}</p>
                     </div>
                 )}
@@ -211,15 +359,13 @@ function App() {
 
             {/* Mobile fallback */}
             <div className="sm:hidden w-full h-full flex flex-col items-center justify-center p-6 text-center bg-white">
-                <p className="text-xl font-bold text-[var(--sea-ink)]">
-                    Desktop Recommended
-                </p>
+                <p className="text-xl font-bold text-[var(--sea-ink)]">Desktop Recommended</p>
                 <p className="text-sm text-[var(--sea-ink-soft)] mt-2">
                     The DOM Tree visualizer canvas requires a wider screen.
                 </p>
             </div>
 
-            {/* ── Main Canvas: DOM tree ── */}
+            {/* ── Main Canvas ── */}
             <section className="hidden sm:flex flex-1 relative bg-white flex-col min-w-0">
                 {result ? (
                     <>
@@ -235,32 +381,20 @@ function App() {
                                 matchedNodeIds={matchedNodeIds}
                                 activeNodeId={activeNodeId}
                                 trackingIds={trackingIds}
+                                lcaHighlight={lcaHighlight}
                             />
                         </div>
                     </>
                 ) : (
                     <div className="flex-1 w-full h-full flex flex-col items-center justify-center bg-[var(--sand)]/10">
                         <div className="w-16 h-16 rounded-full bg-[var(--lagoon)]/10 ring-[var(--lagoon)]/20 ring-[4px] flex items-center justify-center mb-5">
-                            <svg
-                                className="w-8 h-8 text-[var(--lagoon-deep)]"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth="2"
-                                    d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"
-                                />
+                            <svg className="w-8 h-8 text-[var(--lagoon-deep)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
                             </svg>
                         </div>
-                        <p className="text-xl font-semibold text-[var(--sea-ink)]">
-                            Awaiting Target
-                        </p>
+                        <p className="text-xl font-semibold text-[var(--sea-ink)]">Awaiting Target</p>
                         <p className="text-[var(--sea-ink-soft)] mt-2 text-sm max-w-sm text-center">
-                            Configure search parameters in the side panel to begin
-                            tracing an HTML structure.
+                            Configure search parameters in the side panel to begin tracing an HTML structure.
                         </p>
                     </div>
                 )}
@@ -275,9 +409,7 @@ function App() {
                         <h3 className="text-[13px] font-semibold text-[var(--sea-ink)] mb-3 flex justify-between items-center">
                             <span>Analytics</span>
                             {isPlaying && (
-                                <span className="text-[10px] uppercase tracking-wide text-orange-500 animate-pulse">
-                                    Live
-                                </span>
+                                <span className="text-[10px] uppercase tracking-wide text-orange-500 animate-pulse">Live</span>
                             )}
                         </h3>
                         <div className="space-y-2.5 font-mono text-[12px]">
@@ -295,15 +427,11 @@ function App() {
                             </div>
                             <div className="flex justify-between text-[var(--sea-ink-soft)] items-center">
                                 <span>Time Took</span>
-                                <span className="text-[var(--sea-ink)] font-semibold">
-                                    {result.duration_ms} ms
-                                </span>
+                                <span className="text-[var(--sea-ink)] font-semibold">{result.duration_ms} ms</span>
                             </div>
                             <div className="flex justify-between text-[var(--sea-ink-soft)] items-center">
                                 <span>Max Depth</span>
-                                <span className="text-[var(--palm)] font-semibold">
-                                    {result.max_depth}
-                                </span>
+                                <span className="text-[var(--palm)] font-semibold">{result.max_depth}</span>
                             </div>
                         </div>
                     </div>
@@ -311,9 +439,7 @@ function App() {
                     {/* Traversal Log header */}
                     <div className="px-5 pt-4 pb-2 flex items-center justify-between flex-shrink-0">
                         <div>
-                            <h3 className="text-[13px] font-semibold text-[var(--sea-ink)]">
-                                Traversal Log
-                            </h3>
+                            <h3 className="text-[13px] font-semibold text-[var(--sea-ink)]">Traversal Log</h3>
                             <p className="text-[10px] text-[var(--sea-ink-soft)] mt-0.5">
                                 {result.traversal_log?.length ?? 0} steps recorded
                             </p>
@@ -324,9 +450,7 @@ function App() {
                             title="Download log file"
                             className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--lagoon-deep)] border border-[var(--lagoon)]/30 bg-[var(--foam)] hover:bg-[var(--lagoon)]/10 px-2.5 py-1 rounded-lg transition disabled:opacity-50"
                         >
-                            {isDownloading ? (
-                                <span>...</span>
-                            ) : (
+                            {isDownloading ? <span>...</span> : (
                                 <>
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
@@ -340,16 +464,13 @@ function App() {
                     {/* Log legend */}
                     <div className="px-5 pb-2 flex gap-3 flex-shrink-0">
                         <span className="flex items-center gap-1 text-[10px] text-[var(--sea-ink-soft)]">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--lagoon)] inline-block" />
-                            MATCH
+                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--lagoon)] inline-block" /> MATCH
                         </span>
                         <span className="flex items-center gap-1 text-[10px] text-[var(--sea-ink-soft)]">
-                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" />
-                            Active
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-400 inline-block" /> Active
                         </span>
                         <span className="flex items-center gap-1 text-[10px] text-[var(--sea-ink-soft)]">
-                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block" />
-                            VISIT
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-300 inline-block" /> VISIT
                         </span>
                     </div>
 
@@ -372,51 +493,61 @@ function App() {
                                                 : "opacity-25"
                                     }`}
                                 >
-                                    {/* Step number */}
                                     <span className="text-[var(--sea-ink-soft)] w-6 text-right flex-shrink-0 tabular-nums">
                                         {idx + 1}
                                     </span>
-
-                                    {/* Active indicator dot */}
                                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                                        isActive
-                                            ? "bg-orange-400"
-                                            : step.matched
-                                              ? "bg-[var(--lagoon)]"
-                                              : "bg-slate-300"
+                                        isActive ? "bg-orange-400" : step.matched ? "bg-[var(--lagoon)]" : "bg-slate-300"
                                     }`} />
-
-                                    {/* Tag name */}
                                     <span className={`flex-1 truncate font-semibold ${
-                                        isActive
-                                            ? "text-orange-700"
-                                            : step.matched
-                                              ? "text-[var(--lagoon-deep)]"
-                                              : "text-[var(--sea-ink)]"
+                                        isActive ? "text-orange-700" : step.matched ? "text-[var(--lagoon-deep)]" : "text-[var(--sea-ink)]"
                                     }`}>
                                         {step.tag === "#text" ? '"text"' : `<${step.tag}>`}
                                     </span>
-
-                                    {/* Depth badge */}
                                     <span className="text-[var(--sea-ink-soft)] text-[10px] flex-shrink-0">
                                         d:{step.depth}
                                     </span>
-
-                                    {/* Action badge */}
                                     {step.matched ? (
                                         <span className="text-[10px] font-bold text-[var(--lagoon-deep)] bg-[var(--lagoon)]/10 px-1.5 py-0.5 rounded flex-shrink-0">
                                             MATCH
                                         </span>
                                     ) : (
-                                        <span className="text-[10px] text-slate-400 flex-shrink-0">
-                                            VISIT
-                                        </span>
+                                        <span className="text-[10px] text-slate-400 flex-shrink-0">VISIT</span>
                                     )}
                                 </div>
                             );
                         })}
                     </div>
                 </aside>
+            )}
+
+            {/* ── HTML Viewer Modal ── */}
+            {showHtmlViewer && (
+                <div className="fixed inset-0 z-50 flex flex-col bg-[#0f1923]/95 backdrop-blur-sm">
+                    <div className="flex items-center justify-between px-5 py-3 border-b border-white/10 flex-shrink-0">
+                        <div>
+                            <h2 className="text-white font-semibold text-[15px]">Raw HTML Source</h2>
+                            <p className="text-white/40 text-[11px]">{htmlContent.length.toLocaleString()} characters</p>
+                        </div>
+                        <button
+                            onClick={() => setShowHtmlViewer(false)}
+                            className="text-white/50 hover:text-white text-2xl leading-none px-2 transition"
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-auto">
+                        {htmlLoading ? (
+                            <div className="flex items-center justify-center h-full text-white/40 text-sm">
+                                Loading…
+                            </div>
+                        ) : (
+                            <pre className="text-[11px] font-mono text-[#7dd3c8] p-5 leading-relaxed whitespace-pre-wrap break-all">
+                                {htmlContent}
+                            </pre>
+                        )}
+                    </div>
+                </div>
             )}
         </main>
     );

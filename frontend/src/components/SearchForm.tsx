@@ -47,6 +47,9 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
         }
     };
 
+    const inputClass =
+        "rounded-xl border border-[var(--line)] bg-[rgba(23,58,64,0.07)] text-[var(--sea-ink)] placeholder:text-[var(--sea-ink-soft)]/50 px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)] focus:bg-white/70";
+
     return (
         <form onSubmit={handleSubmit} className="flex flex-col gap-4 w-full">
 
@@ -136,7 +139,7 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                     value={selector}
                     onChange={(e) => setSelector(e.target.value)}
                     placeholder="e.g. div.container"
-                    className="rounded-xl border border-[var(--line)] bg-[rgba(23,58,64,0.07)] text-[var(--sea-ink)] placeholder:text-[var(--sea-ink-soft)]/50 px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)] focus:bg-white/70"
+                    className={inputClass}
                 />
             </div>
 
@@ -151,7 +154,7 @@ export function SearchForm({ onSubmit, isLoading }: SearchFormProps) {
                     min="0"
                     value={limit}
                     onChange={(e) => setLimit(parseInt(e.target.value) || 0)}
-                    className="rounded-xl border border-[var(--line)] bg-[rgba(23,58,64,0.07)] text-[var(--sea-ink)] placeholder:text-[var(--sea-ink-soft)]/50 px-4 py-2.5 outline-none transition focus:border-[rgba(79,184,178,0.6)] focus:ring-2 focus:ring-[rgba(79,184,178,0.2)] focus:bg-white/70"
+                    className={inputClass}
                 />
             </div>
 
